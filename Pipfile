@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+bump2version = "*"
+# Hotfix for Pipenv's Bug @see https://github.com/pypa/pipenv/issues/4101
+colorama = "*"
+coverage = "*"
+flake8 = "*"
+invoke = "*"
+isort = "*"
+mypy = "*"
+pipenv-setup = "*"
+pylint = "*"
+pytest = "*"
+pywin32 = {version = "*", sys_platform = "== 'win32'"}
+radon = "*"
+xenon = "*"
+asynccpu = {path = ".", editable = true}
+
+[packages]
+# To terminate child processes
+psutil = "*"
