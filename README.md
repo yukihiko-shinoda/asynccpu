@@ -36,7 +36,7 @@ we need to use Low-level APIs which need finer control over the event loop behav
 Application developers should typically use the High-level [`asyncio`] functions, such as asyncio.run(),
 and should rarely need to reference Low-level APIs, such as the Event Loop object or call its methods.
 
-See: [Event Loop — Python 3.9.2 documentation](https://docs.python.org/3/library/asyncio-eventloop.html)
+See: [Event Loop — Python 3 documentation](https://docs.python.org/3/library/asyncio-eventloop.html)
 
 ## Quickstart
 
