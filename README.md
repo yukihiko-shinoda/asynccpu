@@ -36,7 +36,7 @@ we need to use Low-level APIs which need finer control over the event loop behav
 Application developers should typically use the High-level [`asyncio`] functions, such as asyncio.run(),
 and should rarely need to reference Low-level APIs, such as the Event Loop object or call its methods.
 
-See: [Event Loop — Python 3.9.2 documentation](https://docs.python.org/3/library/asyncio-eventloop.html)
+See: [Event Loop — Python 3 documentation](https://docs.python.org/3/library/asyncio-eventloop.html)
 
 ## Quickstart
 
@@ -46,7 +46,7 @@ See: [Event Loop — Python 3.9.2 documentation](https://docs.python.org/3/libra
 pip install asynccpu
 ```
 
-## 2. Implement
+### 2. Implement
 
 This package provides `ProcessTaskPoolExecutor` extends [`ProcessPoolExecutor`],
 And its instance has the method: `create_process_task()`.
@@ -97,8 +97,8 @@ This package was created with [Cookiecutter] and the [yukihiko-shinoda/cookiecut
 [`asyncio`]: https://docs.python.org/3/library/asyncio.html
 [`ThreadPoolExecutor`]: https://docs.python.org/3/library/concurrent.futures.html#threadpoolexecutor
 [`multiprocessing`]: https://docs.python.org/3/library/multiprocessing.html
+[multiprocessing — Process-based parallelism]: https://docs.python.org/3/library/multiprocessing.html
 <!-- markdownlint-disable-next-line no-inline-html -->
 [Answer: Python multiprocessing PicklingError: Can't pickle <type 'function'> - Stack Overflow]: https://stackoverflow.com/a/8805244/12721873
-[multiprocessing — Process-based parallelism]: https://docs.python.org/3/library/multiprocessing.html
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
 [yukihiko-shinoda/cookiecutter-pypackage]: https://github.com/audreyr/cookiecutter-pypackage
