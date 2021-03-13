@@ -40,9 +40,9 @@ if __name__ == "__main__":
         long_description_content_type="text/markdown",
         name="asynccpu",
         packages=find_packages(
-            include=["asynccpu", "asynccpu.*", "tests", "tests.*"]
+            include=["asynccpu", "asynccpu.*"]
         ),  # noqa: E501 pylint: disable=line-too-long
-        package_data={"asynccpu": ["py.typed"], "tests": ["*"]},
+        package_data={"asynccpu": ["py.typed"]},
         python_requires=">=3.8",
         test_suite="tests",
         tests_require=["pytest>=3"],
