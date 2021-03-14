@@ -199,12 +199,24 @@ class TestProcessTaskPoolExecutor:
     """Test for process_task_pool_executor."""
 
     def test_smoke(self, manager_queue) -> None:
+        """
+        - Results should be as same as expected.
+        - Logging configuration should be as same as default.
+        """
         expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        # The setting [tool.pytest.ini_options] in pyproject.toml
+        # doesn't propergate to subprocess on Windows.
+        # Default log level in Python is WARN.
+        # see:
+        #   - Logging HOWTO — Python 3.9.2 documentation
+        #     https://docs.python.org/3/howto/logging.html#when-to-use-logging
+        expect_info = sys.platform != "win32"
+        expect_debug = sys.platform != "win32"
         actuals = asyncio.run(self.example_use_case(manager_queue))
         assert actuals is not None
         for expect in expects:
             assert expect in actuals
-        assert_log(manager_queue, True, True)
+        assert_log(manager_queue, expect_info, expect_debug)
 
     def test_smoke_configure_log(self, manager_queue, configurer_log_level) -> None:
         expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]

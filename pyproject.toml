@@ -10,6 +10,11 @@ line_length = 120
 [tool.black]
 line-length = 120
 
+[tool.pylint.master]
+extension-pkg-whitelist = [
+    "win32api"
+]
+
 [tool.pylint.basic]
 docstring-min-length = "7"
 
