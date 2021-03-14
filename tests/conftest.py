@@ -1,6 +1,7 @@
 """Configuration of pytest"""
 import multiprocessing
-from logging import INFO, Logger, getLogger, root
+from logging import INFO, getLogger, root
+from typing import Any, Callable, Generator
 
 import pytest  # type: ignore
 
@@ -18,18 +19,19 @@ def response():
 
 
 @pytest.fixture
-def manager_queue():
+def manager_queue() -> Generator[Any, None, None]:
     with multiprocessing.Manager() as manager:
-        yield manager.Queue()
+        # Reason: BaseManager's issue.
+        yield manager.Queue()  # type: ignore
 
 
-def configure_log_level() -> Logger:
+def configure_log_level() -> None:
     root_logger = getLogger()
     root_logger.setLevel(INFO)
 
 
 @pytest.fixture
-def configurer_log_level():
+def configurer_log_level() -> Generator[Callable[[], None], None, None]:
     temporary_level = root.level
     yield configure_log_level
     root_logger = getLogger()
