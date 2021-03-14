@@ -8,7 +8,7 @@ import threading
 import weakref
 from asyncio.futures import Future
 from concurrent.futures import ProcessPoolExecutor
-from logging import getLogger
+from logging import Logger, getLogger, handlers
 from typing import Awaitable, Callable, Literal, cast
 
 import psutil
@@ -16,7 +16,15 @@ import psutil
 __all__ = ["ProcessTaskPoolExecutor"]
 
 
-def run(corofn: Callable[..., Awaitable], *args):
+def set_queue_handler(queue) -> Logger:
+    """Sets queue handler."""
+    logger = getLogger()
+    handler = handlers.QueueHandler(queue)
+    logger.addHandler(handler)
+    return logger
+
+
+def run(queue, configurer, corofn: Callable[..., Awaitable], *args):
     """
     This function requires to be orphaned since ProcecssPoolExecutor requires picklable.
     The argument of Coroutine requires not "raw Corutine object" but "Coroutine function"
@@ -30,6 +38,10 @@ def run(corofn: Callable[..., Awaitable], *args):
       - Answer: Why coroutines cannot be used with run_in_executor? - Stack Overflow
         https://stackoverflow.com/a/46075571/12721873
     """
+    if queue is not None:
+        set_queue_handler(queue)
+    if configurer is not None:
+        configurer()
     logger = getLogger(__name__)
     logger.debug("Start run coroutine")
     loop = asyncio.new_event_loop()
@@ -90,13 +102,17 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         initializer=None,
         initargs=(),
         *,
-        cancel_tasks_when_shutdown: bool = False
+        cancel_tasks_when_shutdown: bool = False,
+        queue=None,
+        configurer=None
     ) -> None:
         super().__init__(max_workers, mp_context, initializer, initargs)
         self.cancel_tasks_when_shutdown = cancel_tasks_when_shutdown
         self.loop = asyncio.get_event_loop()
         self.list_process_task: weakref.WeakSet[Future] = weakref.WeakSet()
         self.lock_for_list_process_task = threading.Lock()
+        self.queue = queue
+        self.configurer = configurer
         self.logger = getLogger(__name__)
 
     def __enter__(self) -> ProcessTaskPoolExecutor:
@@ -138,7 +154,9 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
     def create_process_task(self, function_coroutine, *args) -> Future:
         """Creates task like future by wraping coroutine."""
         with self.lock_for_list_process_task:
-            task = cast(Future, self.loop.run_in_executor(self, run, function_coroutine, *args))
+            task = cast(
+                Future, self.loop.run_in_executor(self, run, self.queue, self.configurer, function_coroutine, *args)
+            )
             self.list_process_task.add(task)
             self.list_process_task = self.garbage_collect(self.list_process_task)
             return task
