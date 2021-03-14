@@ -54,6 +54,7 @@ And its instance has the method: `create_process_task()`.
 Ex:
 
 ```python
+import asyncio
 from asynccpu import ProcessTaskPoolExecutor
 
 
@@ -87,6 +88,106 @@ This specification is depend on the one of Python [`multiprocessing`] package:
 <!-- markdownlint-disable-next-line no-inline-html -->
 See: [Answer: Python multiprocessing PicklingError: Can't pickle <type 'function'> - Stack Overflow]
 
+<!-- markdownlint-disable no-trailing-punctuation -->
+## How do I...
+<!-- markdownlint-enable no-trailing-punctuation -->
+
+<!-- markdownlint-disable no-trailing-punctuation -->
+### Capture log from subprocess?
+<!-- markdownlint-enable no-trailing-punctuation -->
+
+Ex:
+
+```python
+import asyncio
+import multiprocessing
+from logging import DEBUG, StreamHandler, Formatter, handlers
+from asynccpu import ProcessTaskPoolExecutor
+
+
+def listener_configurer():
+    console_handler = StreamHandler()
+    console_handler.setFormatter(Formatter("[%(levelname)s/%(processName)s] %(message)s"))
+    # Key Point 4
+    return handlers.QueueListener(queue, console_handler)
+
+
+def worker_configurer():
+    root_logger = multiprocessing.getLogger()
+    root_logger.setLevel(DEBUG)
+
+
+with multiprocessing.Manager() as manager:
+    # Key Point 2
+    queue = manager.Queue()
+    listener = listener_configurer()
+    listener.start()
+    with ProcessTaskPoolExecutor(
+        max_workers=3,
+        cancel_tasks_when_shutdown=True,
+        queue=queue,
+        # Key Point 3
+        configurer=worker_configurer
+    ) as executor:
+        futures = {executor.create_process_task(process_cpu_bound, x) for x in range(10)}
+        return await asyncio.gather(*futures)
+    listener.stop()
+```
+
+This implementation is based on following document:
+
+[Logging to a single file from multiple processes | Logging Cookbook — Python 3 documentation]
+
+#### Key Points
+
+1. Inject [`multiprocessing.Queue`] into subprocess
+2. Create Queue via [`multiprocessing.Manager`] instance
+3. Inject configurer to configure logger for Windows
+4. Consider to use [`logging.handlers.QueueListener`]
+
+##### 1. Inject `multiprocessing.Queue` into subprocess
+
+[`logging.handlers.QueueHandler`] is often used for multi-threaded, multi-process code logging.
+
+See: [Logging Cookbook — Python 3.9.2 documentation](https://docs.python.org/3/howto/logging-cookbook.html)
+
+`ProcessTaskPoolExecutor` automatically set `queue` argument into root logger as [`logging.handlers.QueueHandler`] if `queue` argument is set.
+
+##### 2. Create Queue via [`multiprocessing.Manager`] instance
+
+In case of ProcessPoolExecutor, we have to create [`multiprocessing.Queue`] instance via [`multiprocessing.Manager`] instance,
+otherwise, following error raised when refer queue argument in child process:
+
+```console
+RuntimeError: Queue objects should only be shared between processes through inheritance
+```
+
+`ProcessTaskPoolExecutor` extends [`ProcessPoolExecutor`],
+therefore it's also required in case when use `ProcessTaskPoolExecutor`.
+
+See: [Using concurrent.futures.ProcessPoolExecutor | Logging Cookbook — Python 3 documentation]
+
+##### 3. Inject configurer to configure logger for Windows
+
+On POSIX, subprocess will share loging configuration with parent process by process fork semantics.
+On Windows you can't rely on fork semantics,
+so each process requires to run the logging configuration code when it starts.
+
+`ProcessTaskPoolExecutor` will automatically execute `configurer` argument
+before starting [`Coroutine`] function.
+
+This design is based on following document:
+
+[Logging to a single file from multiple processes | Logging Cookbook — Python 3 documentation]
+
+For instance, this allows us to set log level in subprocess on Windows.
+
+Note that configuring root logger in subprocess seems to effect parent process on POSIX.
+
+##### 4. Consider to use [`logging.handlers.QueueListener`]
+
+We don't have to create an implementation on the Listener process from scratch, we can use it right away with [`logging.handlers.QueueListener`].
+
 ## Credits
 
 This package was created with [Cookiecutter] and the [yukihiko-shinoda/cookiecutter-pypackage] project template.
@@ -100,5 +201,11 @@ This package was created with [Cookiecutter] and the [yukihiko-shinoda/cookiecut
 [multiprocessing — Process-based parallelism]: https://docs.python.org/3/library/multiprocessing.html
 <!-- markdownlint-disable-next-line no-inline-html -->
 [Answer: Python multiprocessing PicklingError: Can't pickle <type 'function'> - Stack Overflow]: https://stackoverflow.com/a/8805244/12721873
+[Logging to a single file from multiple processes | Logging Cookbook — Python 3 documentation]: https://docs.python.org/3/howto/logging-cookbook.html#logging-to-a-single-file-from-multiple-processes
+[`multiprocessing.Queue`]: https://docs.python.org/3/library/multiprocessing.html#exchanging-objects-between-processes
+[`multiprocessing.Manager`]: https://docs.python.org/3/library/multiprocessing.html#managers
+[`logging.handlers.QueueListener`]: https://docs.python.org/3/library/logging.handlers.html#queuelistener
+[`logging.handlers.QueueHandler`]: https://docs.python.org/3/library/logging.handlers.html#queuehandler
+[Using concurrent.futures.ProcessPoolExecutor | Logging Cookbook — Python 3 documentation]: https://docs.python.org/3/howto/logging-cookbook.html#using-concurrent-futures-processpoolexecutor
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
 [yukihiko-shinoda/cookiecutter-pypackage]: https://github.com/audreyr/cookiecutter-pypackage

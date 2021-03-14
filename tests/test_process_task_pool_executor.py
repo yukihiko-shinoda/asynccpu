@@ -9,7 +9,7 @@ import threading
 from asyncio.exceptions import CancelledError
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
-from logging import getLogger
+from logging import DEBUG, INFO, LogRecord
 from multiprocessing.context import Process
 from subprocess import Popen
 from typing import Any, Callable, List, cast
@@ -32,6 +32,28 @@ if sys.platform == "win32":
     from subprocess import CREATE_NEW_PROCESS_GROUP
 
 
+def assert_log(queue, expect_info, expect_debug):
+    record_checker = RecordChecker()
+    while not queue.empty():
+        record_checker.categorize(queue.get())
+    assert record_checker.is_output_info == expect_info
+    assert record_checker.is_output_debug == expect_debug
+
+
+class RecordChecker:
+    """Checks log records."""
+
+    def __init__(self):
+        self.is_output_info = False
+        self.is_output_debug = False
+
+    def categorize(self, log_record: LogRecord):
+        if log_record.levelno == INFO and log_record.message == "Start CPU-bound":
+            self.is_output_info = True
+        if log_record.levelno == DEBUG and log_record.message == "Finish CPU-bound":
+            self.is_output_debug = True
+
+
 async def keyboard_interrupt() -> None:
     await process_cpu_bound()
     _thread.interrupt_main()
@@ -41,10 +63,18 @@ class TestRun:
     """Test for run()."""
 
     @staticmethod
-    def test_run() -> None:
+    def test_run(manager_queue) -> None:
         expect = expect_process_cpu_bound(1)
-        actual = run(process_cpu_bound, 1)
+        actual = run(manager_queue, None, process_cpu_bound, 1)
         assert actual == expect
+        assert_log(manager_queue, True, True)
+
+    @staticmethod
+    def test_run_configure_log(manager_queue, configurer_log_level) -> None:
+        expect = expect_process_cpu_bound(1)
+        actual = run(manager_queue, configurer_log_level, process_cpu_bound, 1)
+        assert actual == expect
+        assert_log(manager_queue, True, False)
 
     @staticmethod
     def test_run_keyboard_interrupt() -> None:
@@ -87,7 +117,7 @@ class TestRun:
         """Sends signal for test."""
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor:
-            return cast(Future, loop.run_in_executor(executor, run, process_cpu_bound, task_id))
+            return cast(Future, loop.run_in_executor(executor, run, None, None, process_cpu_bound, task_id))
 
     @staticmethod
     def terminate(process: Process) -> None:
@@ -168,14 +198,33 @@ class TestTerminateProcess:
 class TestProcessTaskPoolExecutor:
     """Test for process_task_pool_executor."""
 
-    LOGGER = getLogger(__name__)
-
-    def test_smoke(self) -> None:
+    def test_smoke(self, manager_queue) -> None:
+        """
+        - Results should be as same as expected.
+        - Logging configuration should be as same as default.
+        """
         expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
-        actuals = asyncio.run(self.example_use_case())
+        # The setting [tool.pytest.ini_options] in pyproject.toml
+        # doesn't propergate to subprocess on Windows.
+        # Default log level in Python is WARN.
+        # see:
+        #   - Logging HOWTO — Python 3.9.2 documentation
+        #     https://docs.python.org/3/howto/logging.html#when-to-use-logging
+        expect_info = sys.platform != "win32"
+        expect_debug = sys.platform != "win32"
+        actuals = asyncio.run(self.example_use_case(manager_queue))
         assert actuals is not None
         for expect in expects:
             assert expect in actuals
+        assert_log(manager_queue, expect_info, expect_debug)
+
+    def test_smoke_configure_log(self, manager_queue, configurer_log_level) -> None:
+        expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        actuals = asyncio.run(self.example_use_case(manager_queue, configurer_log_level))
+        assert actuals is not None
+        for expect in expects:
+            assert expect in actuals
+        assert_log(manager_queue, True, False)
 
     # Since Python can't trap signal.SIGTERM in Windows.
     # see:
@@ -288,9 +337,13 @@ class TestProcessTaskPoolExecutor:
             assert task.exception() is None
 
     @staticmethod
-    async def example_use_case() -> List[Future]:
+    async def example_use_case(
+        queue: multiprocessing.Queue = None, configurer: Callable[[multiprocessing.Queue], Any] = None
+    ) -> List[Future]:
         """The example use case of ProcessTaskPoolExecutor for E2E testing."""
-        with ProcessTaskPoolExecutor(max_workers=3, cancel_tasks_when_shutdown=True) as executor:
+        with ProcessTaskPoolExecutor(
+            max_workers=3, cancel_tasks_when_shutdown=True, queue=queue, configurer=configurer
+        ) as executor:
             futures = {executor.create_process_task(process_cpu_bound, x) for x in range(10)}
             return await asyncio.gather(*futures)
 
