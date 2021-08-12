@@ -1,5 +1,4 @@
 """Tests for `asynccpu` package."""
-import _thread
 import asyncio
 import multiprocessing
 import os
@@ -8,124 +7,23 @@ import sys
 import threading
 from asyncio.exceptions import CancelledError
 from asyncio.futures import Future
-from concurrent.futures.process import ProcessPoolExecutor
-from logging import DEBUG, INFO, LogRecord
 from multiprocessing.context import Process
 from subprocess import Popen
-from typing import Any, Callable, List, cast
+from typing import Any, Callable, List
 
 import psutil
 import pytest
 
 from asynccpu import ProcessTaskPoolExecutor
-from asynccpu.process_task_pool_executor import run, terminate_processes
-from tests.testlibraries import (
-    SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_SHORT,
-    SECOND_SLEEP_FOR_TEST_MIDDLE,
-    SECOND_SLEEP_FOR_TEST_SHORT,
-)
+from asynccpu.subprocess import terminate_processes
+from tests.testlibraries import SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_SHORT, SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries.assert_log import assert_log
 from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
 from tests.testlibraries.local_socket import LocalSocket
 
 if sys.platform == "win32":
     # Reason pylint issue. When put into group, wrong-import-position occur. pylint: disable=ungrouped-imports
     from subprocess import CREATE_NEW_PROCESS_GROUP
-
-
-def assert_log(queue, expect_info, expect_debug):
-    record_checker = RecordChecker()
-    while not queue.empty():
-        record_checker.categorize(queue.get())
-    assert record_checker.is_output_info == expect_info
-    assert record_checker.is_output_debug == expect_debug
-
-
-class RecordChecker:
-    """Checks log records."""
-
-    def __init__(self):
-        self.is_output_info = False
-        self.is_output_debug = False
-
-    def categorize(self, log_record: LogRecord):
-        if log_record.levelno == INFO and log_record.message == "Start CPU-bound":
-            self.is_output_info = True
-        if log_record.levelno == DEBUG and log_record.message == "Finish CPU-bound":
-            self.is_output_debug = True
-
-
-async def keyboard_interrupt() -> None:
-    await process_cpu_bound()
-    _thread.interrupt_main()
-
-
-class TestRun:
-    """Test for run()."""
-
-    @staticmethod
-    def test_run(manager_queue) -> None:
-        expect = expect_process_cpu_bound(1)
-        actual = run(manager_queue, None, process_cpu_bound, 1)
-        assert actual == expect
-        assert_log(manager_queue, True, True)
-
-    @staticmethod
-    def test_run_configure_log(manager_queue, configurer_log_level) -> None:
-        expect = expect_process_cpu_bound(1)
-        actual = run(manager_queue, configurer_log_level, process_cpu_bound, 1)
-        assert actual == expect
-        assert_log(manager_queue, True, False)
-
-    @staticmethod
-    def test_run_keyboard_interrupt() -> None:
-        loop = asyncio.new_event_loop()
-        with ProcessPoolExecutor() as executor:
-            future = cast(Future, loop.run_in_executor(executor, run, keyboard_interrupt))
-        assert not future.get_loop().is_running()
-        assert not future.done()
-
-    def test_run_terminate(self) -> None:
-        """Function run() should stop when send signal for terminate to child processes."""
-        self.execute_test_run(self.terminate)
-
-    def test_run_kill(self) -> None:
-        """Function run() should stop when send signal for kill to child processes."""
-        self.execute_test_run(self.kill)
-
-    @classmethod
-    def execute_test_run(cls, send_signal: Callable[[Process], None]):
-        """Executes test run"""
-        expect = expect_process_cpu_bound(1)
-        future = cls.run_in_process_executor(1)
-        cls.execute_send_signal(send_signal)
-        loop = future.get_loop()
-        assert not loop.is_running()
-        loop.run_until_complete(asyncio.wait_for(future, SECOND_SLEEP_FOR_TEST_MIDDLE))
-        assert future.done()
-        assert future.result() == expect
-        assert future.exception() is None
-
-    @staticmethod
-    def execute_send_signal(send_signal: Callable[[Process], None]):
-        pytest_process = psutil.Process(os.getpid())
-        children = pytest_process.children()
-        for process in children:
-            send_signal(process)
-
-    @staticmethod
-    def run_in_process_executor(task_id: Any) -> Future:
-        """Sends signal for test."""
-        loop = asyncio.new_event_loop()
-        with ProcessPoolExecutor() as executor:
-            return cast(Future, loop.run_in_executor(executor, run, None, None, process_cpu_bound, task_id))
-
-    @staticmethod
-    def terminate(process: Process) -> None:
-        process.terminate()
-
-    @staticmethod
-    def kill(process: Process) -> None:
-        process.kill()
 
 
 class TestTerminateProcess:
