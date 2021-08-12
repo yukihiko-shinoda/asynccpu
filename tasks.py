@@ -1,15 +1,19 @@
+# type: ignore
 """
 Tasks for maintaining the project.
 
 Execute 'invoke --list' for guidance on using Invoke
 """
+# Reason: invoke doesn't seem to support type hint, otherwise commands cause error:
+# ValueError: Function has keyword-only parameters or annotations,
+# use inspect.signature() API which can support them
 import platform
 import shutil
 import webbrowser
 from pathlib import Path
 
-from invoke import task  # type: ignore
-from invoke.runners import Failure, Result  # type: ignore
+from invoke import task
+from invoke.runners import Failure, Result
 
 ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")

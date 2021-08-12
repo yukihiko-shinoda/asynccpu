@@ -8,7 +8,7 @@ from tests.testlibraries.local_socket import LocalSocket
 win32api.SetConsoleCtrlHandler(None, False)
 
 
-async def get_process_id():
+async def get_process_id() -> int:
     print("Await socket")
     process_id = int(LocalSocket.receive())
     print("Kill group lead process")

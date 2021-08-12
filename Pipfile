@@ -17,6 +17,7 @@ pylint = "*"
 pytest = "*"
 pywin32 = {version = "*", sys_platform = "== 'win32'"}
 radon = "*"
+types-psutil = "*"
 xenon = "*"
 asynccpu = {path = ".", editable = true}
 
