@@ -15,6 +15,7 @@ mypy = "*"
 pipenv-setup = "*"
 pylint = "*"
 pytest = "*"
+pytest-asyncio = "*"
 pywin32 = {version = "*", sys_platform = "== 'win32'"}
 radon = "*"
 types-psutil = "*"
