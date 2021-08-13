@@ -48,7 +48,7 @@ class TestProcessTaskManager:
         assert task.done()
 
     @staticmethod
-    async def execute_test(process_task_factory: ProcessTaskFactory) -> Future[Any]:
+    async def execute_test(process_task_factory: ProcessTaskFactory) -> "Future[Any]":
         """Executes test."""
         process_task_manager = ProcessTaskManager(process_task_factory)
         task = process_task_manager.create_process_task(process_cpu_bound)

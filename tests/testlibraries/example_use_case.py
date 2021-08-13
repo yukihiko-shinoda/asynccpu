@@ -22,7 +22,7 @@ from tests.testlibraries.future_waiter import FutureWaiter
 from tests.testlibraries.local_socket import LocalSocket
 
 
-def create_example_process_tasks(executor: ProcessTaskPoolExecutor) -> List[Future[str]]:
+def create_example_process_tasks(executor: ProcessTaskPoolExecutor) -> List["Future[str]"]:
     return [executor.create_process_task(process_cpu_bound, x) for x in range(10)]
 
 

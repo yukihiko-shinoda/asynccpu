@@ -59,7 +59,7 @@ class ProcessTaskFactory:
         """Creates ProcessTask."""
         queue_process_id = self.sync_manager.Queue()
         task = cast(
-            Future[Any],
+            "Future[Any]",
             self.loop.run_in_executor(
                 self.process_pool_executor,
                 run,
@@ -87,9 +87,7 @@ class ProcessTaskManager:
         timeout_in_emergency: The time to force breaking lock in emergency.
         """
         self.lock_for_dictionary_process_task = threading.Lock()
-        self.weak_key_dictionary_process: weakref.WeakKeyDictionary[
-            ProcessForWeakSet, ProcessTask
-        ] = weakref.WeakKeyDictionary()
+        self.weak_key_dictionary_process: "weakref.WeakKeyDictionary[ProcessForWeakSet, ProcessTask]" = weakref.WeakKeyDictionary()  # noqa: E501 pylint: disable=line-too-long
         self.process_task_factory = process_task_factory
         self.timeout_in_emergency = timeout_in_emergency
         self.logger = getLogger(__name__)
@@ -116,7 +114,7 @@ class ProcessTaskManager:
 
     def create_process_task(
         self, function_coroutine: Callable[..., Awaitable[TypeVarReturnValue]], *args: Any
-    ) -> Future[TypeVarReturnValue]:
+    ) -> "Future[TypeVarReturnValue]":
         """Creates task like future by wraping coroutine."""
         with self.lock_for_dictionary_process_task:
             process_task = self.process_task_factory.create(function_coroutine, *args)

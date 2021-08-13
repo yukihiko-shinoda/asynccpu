@@ -78,7 +78,7 @@ class TestRun:
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor:
             future = cast(
-                Future[Any],
+                "Future[Any]",
                 loop.run_in_executor(executor, run, manager_dict, manager_queue, None, None, keyboard_interrupt),
             )
             manager_queue.get()
@@ -114,7 +114,7 @@ class TestRun:
             send_signal(process)
 
     @staticmethod
-    def run_in_process_executor(task_id: Any) -> Future[Any]:
+    def run_in_process_executor(task_id: Any) -> "Future[Any]":
         """Sends signal for test."""
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor:
@@ -123,7 +123,7 @@ class TestRun:
                 dictionary_process: Dict[int, ProcessForWeakSet] = sync_mangaer.dict()
                 queue_process_id: "queue.Queue[ProcessForWeakSet]" = sync_mangaer.Queue()
                 future = cast(
-                    Future[Any],
+                    "Future[Any]",
                     loop.run_in_executor(
                         executor, run, dictionary_process, queue_process_id, None, None, process_cpu_bound, task_id
                     ),
