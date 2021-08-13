@@ -223,10 +223,10 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
 
     def call_super_class_shutdown(self, wait: bool, cancel_futures: bool) -> None:
         """Calls shutdown() of super class."""
-        if sys.version_info.major < 3 or sys.version_info.major == 3 and sys.version_info.minor <= 8:
-            super().shutdown(wait)  # pragma: no cover
-        else:
+        if sys.version_info >= (3, 9):
             super().shutdown(wait, cancel_futures=cancel_futures)
+        else:
+            super().shutdown(wait)  # pragma: no cover
 
     def create_process_task(
         self, function_coroutine: Callable[..., Awaitable[TypeVarReturnValue]], *args: Any
