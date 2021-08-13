@@ -1,4 +1,4 @@
-FROM python:3.9.1-slim-buster
+FROM python:3.9.6-slim-buster
 RUN python -m pip install --upgrade pip \
  && pip --no-cache-dir install pipenv
 ENV PIPENV_VENV_IN_PROJECT=1
