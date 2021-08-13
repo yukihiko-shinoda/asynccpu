@@ -5,10 +5,9 @@ import queue
 from asyncio.events import AbstractEventLoop
 from logging import Logger, LogRecord, getLogger, handlers
 from signal import SIGTERM, signal
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
-import psutil
-
+from asynccpu.process_terminator import terminate_processes
 from asynccpu.types import TypeVarReturnValue
 
 
@@ -96,15 +95,17 @@ def run(
         cancel_coroutine(logger)
         raise
     finally:
-        terminate(loop, logger, dictionary_process, prosess_id)
+        close_if_has_created(loop)
+        terminate_run(logger, dictionary_process, prosess_id)
 
 
-def terminate(
-    loop: Optional[AbstractEventLoop], logger: Logger, dictionary_process: Dict[int, ProcessForWeakSet], pid: int
-) -> None:
-    """Terminates current subprocess."""
+def close_if_has_created(loop: Optional[AbstractEventLoop]) -> None:
     if loop is not None:
         loop.close()
+
+
+def terminate_run(logger: Logger, dictionary_process: Dict[int, ProcessForWeakSet], pid: int) -> None:
+    """Terminates current subprocess."""
     try:
         logger.debug("len(list_process): %d", len(dictionary_process))
         dictionary_process.pop(pid, None)
@@ -126,27 +127,3 @@ def cancel_coroutine(logger: Logger) -> None:
     """
     logger.info("Cancel run coroutine")
     terminate_processes(os.getpid())
-
-
-def terminate_processes(parent_pid: int, *, force: bool = False) -> None:
-    """
-    This method doesn't have parameter for sending signal
-    since psutil seems to being blackbox the difference between Linux and Windows.
-    see:
-      - Answer: multiprocess - Python: concurrent.futures How to make it cancelable? - Stack Overflow
-        https://stackoverflow.com/a/45515052/12721873
-    """
-    logger = getLogger(__name__)
-    parent = psutil.Process(parent_pid)
-    children: List[psutil.Process] = parent.children(recursive=True)
-    logger.debug("Terminate child processes")
-    if force:
-        for process in children:
-            process.kill()
-        logger.debug("Terminate target processes")
-        parent.kill()
-    else:
-        for process in children:
-            process.terminate()
-        logger.debug("Terminate target processes")
-        parent.terminate()

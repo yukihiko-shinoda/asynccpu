@@ -1,22 +1,20 @@
 """Test for subprocess.py."""
 import _thread
 import asyncio
-import multiprocessing
 import queue
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
 from logging import LogRecord, getLogger
-from multiprocessing import synchronize
-from multiprocessing.context import Process
 from multiprocessing.managers import SyncManager
 from typing import Any, Callable, Dict, List, cast
 
 import psutil
 
-from asynccpu.subprocess import ProcessForWeakSet, cancel_coroutine, run, terminate_processes
+from asynccpu.subprocess import ProcessForWeakSet, cancel_coroutine, run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.assert_log import assert_log
-from tests.testlibraries.cpu_bound import cpu_bound, expect_process_cpu_bound, process_cpu_bound
+from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
+from tests.testlibraries.process_family import ProcessFamily
 
 
 async def keyboard_interrupt() -> None:
@@ -140,85 +138,9 @@ class TestCancelCoroutine:
 
     def test_cancel_coroutine(self) -> None:
         """Function terminate_process() should terminate all child processes."""
-        process_family = ProcessFamily(self.child)
-        multiprocessing.connection.wait([process_family.child_process.sentinel])
+        process_family = ProcessFamily(self.execute_cancel_coroutine)
         process_family.assert_that_descendant_processes_are_terminated()
 
     @classmethod
-    def child(cls, event: synchronize.Event) -> None:
-        Process(target=cpu_bound).start()
-        event.set()
+    def execute_cancel_coroutine(cls) -> None:
         cancel_coroutine(getLogger())
-
-
-class TestTerminateProcess:
-    """Test for terminate_process()."""
-
-    def test_terminate_processes(self) -> None:
-        """Function terminate_process() should terminate all child processes."""
-
-        def execute_terminate_processes(process_id: int) -> None:
-            terminate_processes(process_id)
-
-        self.execute_test_terminate_processes(execute_terminate_processes)
-
-    def test_terminate_processes_force(self) -> None:
-        """Function terminate_process() should kill all child processes."""
-
-        def execute_terminate_processes(process_id: int) -> None:
-            terminate_processes(process_id, force=True)
-
-        self.execute_test_terminate_processes(execute_terminate_processes)
-
-    @classmethod
-    def execute_test_terminate_processes(cls, callable_execute_terminate_processes: Callable[[int], None]) -> None:
-        """Executes test for terminate_process()."""
-        process_family = ProcessFamily(cls.child)
-        pid = process_family.child_process.pid
-        assert pid is not None
-        callable_execute_terminate_processes(pid)
-        multiprocessing.connection.wait([process_family.child_process.sentinel])
-        process_family.assert_that_descendant_processes_are_terminated()
-
-    @classmethod
-    def child(cls, event: synchronize.Event) -> None:
-        Process(target=cpu_bound).start()
-        event.set()
-
-
-class ProcessFamily:
-    """Creates child process and grandchild process ad once."""
-
-    def __init__(self, child: Callable[[synchronize.Event], Any]) -> None:
-        self.child_process = self.create_child_process(child)
-        self.grandchildren = self.get_grandchildren_process(self.child_process)
-        assert self.child_process.pid is not None
-
-    @classmethod
-    def create_child_process(cls, child: Callable[[synchronize.Event], Any]) -> Process:
-        """Creates child process for test."""
-        event = multiprocessing.Event()
-        child_process = Process(target=child, args=(event,))
-        child_process.start()
-        assert child_process.is_alive()
-        event.wait()  # for starting grandchild process
-        return child_process
-
-    @staticmethod
-    def get_grandchildren_process(child_process: Process) -> List[psutil.Process]:
-        """Creates grandchildren processes for test."""
-        psutil_child_process = psutil.Process(child_process.pid)
-        grandchildren: List[psutil.Process] = psutil_child_process.children(recursive=True)
-        assert grandchildren
-        for grandchild in grandchildren:
-            # Reason: Requires to enhance types-psutil
-            assert grandchild.is_running()  # type: ignore
-        return grandchildren
-
-    def assert_that_descendant_processes_are_terminated(self) -> None:
-        _, alive = psutil.wait_procs(self.grandchildren, timeout=1)
-        assert not alive
-        assert not self.child_process.is_alive()
-        for grandchild in self.grandchildren:
-            # Reason: Requires to enhance types-psutil
-            assert not grandchild.is_running()  # type: ignore
