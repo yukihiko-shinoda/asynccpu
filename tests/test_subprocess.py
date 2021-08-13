@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, cast
 
 import psutil
 import pytest
-from pytest_mock.plugin import MockerFixture
+from pytest_mock import MockerFixture
 
 from asynccpu.subprocess import ProcessForWeakSet, cancel_coroutine, run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
