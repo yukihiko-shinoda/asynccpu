@@ -4,7 +4,7 @@ import os
 import signal
 import time
 from asyncio.tasks import Task
-from typing import Awaitable, Optional
+from typing import Any, Awaitable, Optional
 
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.example_use_case import example_use_case_cancel
@@ -16,7 +16,7 @@ class KeyboardInterrupter:
 
     def __init__(self, get_process_id: Awaitable[int]) -> None:
         # Reason: pytest bug. pylint: disable=unsubscriptable-object
-        self.task: Optional[Task] = None
+        self.task: Optional[Task[Any]] = None
         self.get_process_id = get_process_id
 
     def test_keyboard_interrupt(self) -> None:

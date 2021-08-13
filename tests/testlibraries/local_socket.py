@@ -20,13 +20,13 @@ class LocalSocket:
     SOCKET_REUSE_ADDRESS_ENABLE = 1
 
     @staticmethod
-    def send(message: str):
+    def send(message: str) -> None:
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as socket_to:
             socket_to.connect((LocalSocket.HOST, LocalSocket.PORT))
             socket_to.send(bytes(message, LocalSocket.ENCODING))
 
     @staticmethod
-    def receive():
+    def receive() -> str:
         """Receives message."""
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as socket_from:
             socket_from.settimeout(LocalSocket.TIMEOUT)

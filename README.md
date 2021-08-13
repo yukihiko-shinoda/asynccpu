@@ -125,6 +125,7 @@ with multiprocessing.Manager() as manager:
     with ProcessTaskPoolExecutor(
         max_workers=3,
         cancel_tasks_when_shutdown=True,
+        # Key Point 1
         queue=queue,
         # Key Point 3
         configurer=worker_configurer
@@ -140,32 +141,35 @@ This implementation is based on following document:
 
 #### Key Points
 
-1. Inject [`multiprocessing.Queue`] into subprocess
-2. Create Queue via [`multiprocessing.Manager`] instance
+1. Inject *special* [`queue.Queue`] object into subprocess
+2. Create *special* [`queue.Queue`] object via [`multiprocessing.Manager`]
 3. Inject configurer to configure logger for Windows
 4. Consider to use [`logging.handlers.QueueListener`]
 
-##### 1. Inject `multiprocessing.Queue` into subprocess
+##### 1. Inject *special* `queue.Queue` object into subprocess
 
+We can capture logs from subprocess via [`queue.Queue`] object.
 [`logging.handlers.QueueHandler`] is often used for multi-threaded, multi-process code logging.
 
-See: [Logging Cookbook — Python 3.9.2 documentation](https://docs.python.org/3/howto/logging-cookbook.html)
+See: [Logging Cookbook — Python 3 documentation]
 
 `ProcessTaskPoolExecutor` automatically set `queue` argument into root logger as [`logging.handlers.QueueHandler`] if `queue` argument is set.
 
-##### 2. Create Queue via [`multiprocessing.Manager`] instance
+##### 2. Create *special* [`queue.Queue`] object via [`multiprocessing.Manager`]
 
-In case of ProcessPoolExecutor, we have to create [`multiprocessing.Queue`] instance via [`multiprocessing.Manager`] instance,
+We have to create [`queue.Queue`] object via [`multiprocessing.Manager`] due to limitation of [`ProcessPoolExecutor`] running inside,
 otherwise, following error raised when refer queue argument in child process:
 
 ```console
 RuntimeError: Queue objects should only be shared between processes through inheritance
 ```
 
-`ProcessTaskPoolExecutor` extends [`ProcessPoolExecutor`],
-therefore it's also required in case when use `ProcessTaskPoolExecutor`.
+[`multiprocessing.Manager`] instantiates *special* [`queue.Queue`] object (*Proxy Object*).
 
-See: [Using concurrent.futures.ProcessPoolExecutor | Logging Cookbook — Python 3 documentation]
+See:
+
+- [Using concurrent.futures.ProcessPoolExecutor | Logging Cookbook — Python 3 documentation]
+- [Proxy Objects | multiprocessing — Process-based parallelism — Python 3 documentation]
 
 ##### 3. Inject configurer to configure logger for Windows
 
@@ -202,10 +206,12 @@ This package was created with [Cookiecutter] and the [yukihiko-shinoda/cookiecut
 <!-- markdownlint-disable-next-line no-inline-html -->
 [Answer: Python multiprocessing PicklingError: Can't pickle <type 'function'> - Stack Overflow]: https://stackoverflow.com/a/8805244/12721873
 [Logging to a single file from multiple processes | Logging Cookbook — Python 3 documentation]: https://docs.python.org/3/howto/logging-cookbook.html#logging-to-a-single-file-from-multiple-processes
-[`multiprocessing.Queue`]: https://docs.python.org/3/library/multiprocessing.html#exchanging-objects-between-processes
+[`queue.Queue`]: (https://docs.python.org/3/library/queue.html#queue.Queue)
 [`multiprocessing.Manager`]: https://docs.python.org/3/library/multiprocessing.html#managers
 [`logging.handlers.QueueListener`]: https://docs.python.org/3/library/logging.handlers.html#queuelistener
 [`logging.handlers.QueueHandler`]: https://docs.python.org/3/library/logging.handlers.html#queuehandler
+[Logging Cookbook — Python 3 documentation]: https://docs.python.org/3/howto/logging-cookbook.html
 [Using concurrent.futures.ProcessPoolExecutor | Logging Cookbook — Python 3 documentation]: https://docs.python.org/3/howto/logging-cookbook.html#using-concurrent-futures-processpoolexecutor
+[Proxy Objects | multiprocessing — Process-based parallelism — Python 3 documentation]: https://docs.python.org/3/library/multiprocessing.html#multiprocessing-proxy-objects
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
 [yukihiko-shinoda/cookiecutter-pypackage]: https://github.com/audreyr/cookiecutter-pypackage
