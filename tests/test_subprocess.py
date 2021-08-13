@@ -1,7 +1,9 @@
 """Test for subprocess.py."""
 import _thread
 import asyncio
+import os
 import queue
+import sys
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
 from logging import LogRecord, getLogger
@@ -9,6 +11,8 @@ from multiprocessing.managers import SyncManager
 from typing import Any, Callable, Dict, List, cast
 
 import psutil
+import pytest
+from pytest_mock.plugin import MockerFixture
 
 from asynccpu.subprocess import ProcessForWeakSet, cancel_coroutine, run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
@@ -136,11 +140,28 @@ class TestRun:
 class TestCancelCoroutine:
     """Test for cancel_coroutine()."""
 
-    def test_cancel_coroutine(self) -> None:
-        """Function terminate_process() should terminate all child processes."""
+    @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
+    def test_unified(self) -> None:
+        """
+        Function terminate_process() should terminate all child processes.
+
+        Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it.
+        Function process.kill() stops pytest process.
+        see:
+          - https://psutil.readthedocs.io/en/latest/#psutil.Process.terminate
+          - https://psutil.readthedocs.io/en/latest/#psutil.Process.kill
+          - https://docs.python.org/ja/3/library/signal.html#signal.SIGKILL
+        """
         process_family = ProcessFamily(self.execute_cancel_coroutine)
         process_family.assert_that_descendant_processes_are_terminated()
 
     @classmethod
     def execute_cancel_coroutine(cls) -> None:
         cancel_coroutine(getLogger())
+
+    @staticmethod
+    def test_unit(mocker: MockerFixture) -> None:
+        mock_terminate_processes = mocker.MagicMock()
+        mocker.patch("asynccpu.subprocess.terminate_processes", mock_terminate_processes)
+        cancel_coroutine(getLogger())
+        mock_terminate_processes.assert_called_once_with(os.getpid())

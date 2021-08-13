@@ -16,6 +16,7 @@ pipenv-setup = "*"
 pylint = "*"
 pytest = "*"
 pytest-asyncio = "*"
+pytest-mock = "*"
 pywin32 = {version = "*", sys_platform = "== 'win32'"}
 radon = "*"
 types-psutil = "*"
