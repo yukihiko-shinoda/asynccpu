@@ -1,4 +1,5 @@
 """Configuration of pytest"""
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 import queue
 from logging import INFO, getLogger, root
 from multiprocessing.managers import SyncManager
@@ -17,13 +18,13 @@ def sync_manager() -> Generator[SyncManager, None, None]:
 
 @pytest.fixture
 # Reason: To refer other fixture. pylint: disable=redefined-outer-name
-def manager_queue(sync_manager: SyncManager) -> Generator[queue.Queue[Any], None, None]:
+def manager_queue(sync_manager: SyncManager) -> Generator["queue.Queue[Any]", None, None]:
     yield sync_manager.Queue()
 
 
 @pytest.fixture
 # Reason: To refer other fixture. pylint: disable=redefined-outer-name
-def manager_queue_2(sync_manager: SyncManager) -> Generator[queue.Queue[Any], None, None]:
+def manager_queue_2(sync_manager: SyncManager) -> Generator["queue.Queue[Any]", None, None]:
     yield sync_manager.Queue()
 
 

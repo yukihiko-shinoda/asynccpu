@@ -2,10 +2,14 @@
 import _thread
 import asyncio
 import os
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 import queue
 import sys
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 from logging import LogRecord, getLogger
 from multiprocessing.managers import SyncManager
 from typing import Any, Callable, Dict, List, cast
@@ -44,8 +48,8 @@ class TestRun:
     @staticmethod
     def test_run(
         manager_dict: Dict[int, ProcessForWeakSet],
-        manager_queue: queue.Queue[ProcessForWeakSet],
-        manager_queue_2: queue.Queue[LogRecord],
+        manager_queue: "queue.Queue[ProcessForWeakSet]",
+        manager_queue_2: "queue.Queue[LogRecord]",
     ) -> None:
         """Function: run should run coroutine function from beggining to end."""
         expect = expect_process_cpu_bound(1)
@@ -56,8 +60,8 @@ class TestRun:
     @staticmethod
     def test_run_configure_log(
         manager_dict: Dict[int, ProcessForWeakSet],
-        manager_queue: queue.Queue[ProcessForWeakSet],
-        manager_queue_2: queue.Queue[LogRecord],
+        manager_queue: "queue.Queue[ProcessForWeakSet]",
+        manager_queue_2: "queue.Queue[LogRecord]",
         configurer_log_level: Callable[[], None],
     ) -> None:
         """Function: run should be able to configure log settings."""
@@ -68,7 +72,7 @@ class TestRun:
 
     @staticmethod
     def test_run_keyboard_interrupt(
-        manager_dict: Dict[int, ProcessForWeakSet], manager_queue: queue.Queue[ProcessForWeakSet]
+        manager_dict: Dict[int, ProcessForWeakSet], manager_queue: "queue.Queue[ProcessForWeakSet]"
     ) -> None:
         """Function: run should stop by keyboard interupt."""
         loop = asyncio.new_event_loop()
@@ -117,7 +121,7 @@ class TestRun:
             with SyncManager() as manager:
                 sync_mangaer = cast(SyncManager, manager)
                 dictionary_process: Dict[int, ProcessForWeakSet] = sync_mangaer.dict()
-                queue_process_id: queue.Queue[ProcessForWeakSet] = sync_mangaer.Queue()
+                queue_process_id: "queue.Queue[ProcessForWeakSet]" = sync_mangaer.Queue()
                 future = cast(
                     Future[Any],
                     loop.run_in_executor(

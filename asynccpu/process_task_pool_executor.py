@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 import queue
 import sys
 import threading
@@ -9,6 +11,8 @@ import traceback
 import weakref
 from asyncio.futures import Future
 from concurrent.futures import ProcessPoolExecutor
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 from logging import LogRecord, getLogger
 from multiprocessing.context import BaseContext
 from multiprocessing.managers import SyncManager
@@ -33,7 +37,7 @@ class ProcessTaskFactory:
         process_pool_executor: ProcessPoolExecutor,
         sync_manager: SyncManager,
         *,
-        queue_logger: Optional[queue.Queue[LogRecord]] = None,
+        queue_logger: Optional["queue.Queue[LogRecord]"] = None,
         configurer: Optional[Callable[[], Any]] = None,
     ) -> None:
         self.process_pool_executor = process_pool_executor
@@ -137,7 +141,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         *,
         cancel_tasks_when_shutdown: bool = False,
         # Reason: This argument name is API. pylint: disable=redefined-outer-name
-        queue: Optional[queue.Queue[LogRecord]] = None,
+        queue: Optional["queue.Queue[LogRecord]"] = None,
         configurer: Optional[Callable[[], Any]] = None,
     ) -> None:
         super().__init__(max_workers, mp_context, initializer, initargs)

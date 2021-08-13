@@ -1,11 +1,15 @@
 """Tests for `asynccpu` package."""
 import asyncio
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 import queue
 import sys
 import time
 from asyncio.exceptions import CancelledError
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 from logging import LogRecord
 from multiprocessing.context import Process
 from multiprocessing.managers import SyncManager
@@ -65,7 +69,7 @@ class TestProcessTaskPoolExecutor:
             executor.shutdown()
 
     @staticmethod
-    def test_smoke(manager_queue: queue.Queue[LogRecord]) -> None:
+    def test_smoke(manager_queue: "queue.Queue[LogRecord]") -> None:
         """
         - Results should be as same as expected.
         - Logging configuration should be as same as default.
@@ -87,7 +91,7 @@ class TestProcessTaskPoolExecutor:
 
     @staticmethod
     def test_smoke_configure_log(
-        manager_queue: queue.Queue[LogRecord], configurer_log_level: Callable[[], None]
+        manager_queue: "queue.Queue[LogRecord]", configurer_log_level: Callable[[], None]
     ) -> None:
         """ProcessTaskPoolExecutor should be able to configure logging settings."""
         expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
@@ -129,7 +133,7 @@ class TestProcessTaskPoolExecutor:
     #     https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
-    def test_terminate(manager_queue: queue.Queue[LogRecord]) -> None:
+    def test_terminate(manager_queue: "queue.Queue[LogRecord]") -> None:
         """
         Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it.
         Function process.kill() stops pytest process.
@@ -155,7 +159,7 @@ class TestProcessTaskPoolExecutor:
     #     https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
-    def test_sigterm(manager_queue: queue.Queue[LogRecord]) -> None:
+    def test_sigterm(manager_queue: "queue.Queue[LogRecord]") -> None:
         """ProcessTaskPoolExecutor should raise keyboard interrupt."""
         process = Process(target=example_use_case_cancel_repost_process_id, kwargs={"queue_main": manager_queue})
         process.start()
@@ -227,7 +231,7 @@ class TestProcessTaskPoolExecutor:
         LocalSocket.send("Test succeed")
 
 
-def assert_graceful_shutdown(queue_logger: queue.Queue[LogRecord]) -> None:
+def assert_graceful_shutdown(queue_logger: "queue.Queue[LogRecord]") -> None:
     """Asserts graceful shutdown."""
     log_checker = LogChecker()
     while not queue_logger.empty():

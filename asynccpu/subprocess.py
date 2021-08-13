@@ -1,8 +1,12 @@
 """Subprocess."""
 import asyncio
 import os
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 import queue
 from asyncio.events import AbstractEventLoop
+
+# Reason: To support Python 3.8 or less pylint: disable=unused-import
 from logging import Logger, LogRecord, getLogger, handlers
 from signal import SIGTERM, signal
 from typing import Any, Awaitable, Callable, Dict, Optional
@@ -40,7 +44,7 @@ class ProcessForWeakSet:
         return hash(self._id)
 
 
-def set_queue_handler(queue_logger: queue.Queue[LogRecord]) -> Logger:
+def set_queue_handler(queue_logger: "queue.Queue[LogRecord]") -> Logger:
     """Sets queue handler."""
     logger = getLogger()
     handler = handlers.QueueHandler(queue_logger)
@@ -50,8 +54,8 @@ def set_queue_handler(queue_logger: queue.Queue[LogRecord]) -> Logger:
 
 def run(
     dictionary_process: Dict[int, ProcessForWeakSet],
-    queue_process_id: queue.Queue[ProcessForWeakSet],
-    queue_logger: queue.Queue[LogRecord],
+    queue_process_id: "queue.Queue[ProcessForWeakSet]",
+    queue_logger: "queue.Queue[LogRecord]",
     configurer: Optional[Callable[[], Any]],
     corofn: Callable[..., Awaitable[TypeVarReturnValue]],
     *args: Any
