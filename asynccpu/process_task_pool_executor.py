@@ -23,7 +23,7 @@ from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Typ
 import psutil
 
 from asynccpu.process_task import ProcessTask
-from asynccpu.subprocess import ProcessForWeakSet, run
+from asynccpu.subprocess import LoggingInitializer, ProcessForWeakSet, Replier, run
 from asynccpu.types import TypeVarReturnValue
 
 __all__ = ["ProcessTaskPoolExecutor"]
@@ -37,8 +37,7 @@ class ProcessTaskFactory:
         process_pool_executor: ProcessPoolExecutor,
         sync_manager: SyncManager,
         *,
-        queue_logger: Optional["queue.Queue[LogRecord]"] = None,
-        configurer: Optional[Callable[[], Any]] = None,
+        logging_initializer: Optional[LoggingInitializer] = None,
     ) -> None:
         self.process_pool_executor = process_pool_executor
         self.sync_manager = sync_manager
@@ -51,24 +50,17 @@ class ProcessTaskFactory:
         # E     -<bound method ProcessForWeakSet.__hash__ of
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f850>>
         self.dictionary_process: Dict[int, ProcessForWeakSet] = sync_manager.dict()
-        self.queue = queue_logger
-        self.configurer = configurer
+        self.logging_initializer = logging_initializer
         self.loop = asyncio.get_event_loop()
 
     def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> ProcessTask:
         """Creates ProcessTask."""
         queue_process_id = self.sync_manager.Queue()
+        replier = Replier(self.dictionary_process, queue_process_id)
         task = cast(
             "Future[Any]",
             self.loop.run_in_executor(
-                self.process_pool_executor,
-                run,
-                self.dictionary_process,
-                queue_process_id,
-                self.queue,
-                self.configurer,
-                function_coroutine,
-                *args,
+                self.process_pool_executor, run, replier, self.logging_initializer, function_coroutine, *args,
             ),
         )
         return ProcessTask(queue_process_id.get(), task)
@@ -169,7 +161,8 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         # It's better to divide __enter__() and __exit__() for simplicity and testability.
         # pylint: disable=consider-using-with
         self.sync_manager.start()
-        process_task_factory = ProcessTaskFactory(self, self.sync_manager, queue_logger=queue, configurer=configurer)
+        logging_initializer = LoggingInitializer(queue, configurer)
+        process_task_factory = ProcessTaskFactory(self, self.sync_manager, logging_initializer=logging_initializer)
         self.process_task_manager = ProcessTaskManager(process_task_factory)
         self.logger = getLogger(__name__)
         self.original_sigint_handler = getsignal(SIGTERM)

@@ -9,7 +9,8 @@ from asyncio.events import AbstractEventLoop
 # Reason: To support Python 3.8 or less pylint: disable=unused-import
 from logging import Logger, LogRecord, getLogger, handlers
 from signal import SIGTERM, signal
-from typing import Any, Awaitable, Callable, Dict, Optional
+from types import TracebackType
+from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Type
 
 from asynccpu.process_terminator import terminate_processes
 from asynccpu.types import TypeVarReturnValue
@@ -44,19 +45,72 @@ class ProcessForWeakSet:
         return hash(self._id)
 
 
-def set_queue_handler(queue_logger: "queue.Queue[LogRecord]") -> Logger:
-    """Sets queue handler."""
-    logger = getLogger()
-    handler = handlers.QueueHandler(queue_logger)
-    logger.addHandler(handler)
-    return logger
+class Replier:
+    """To reply current process status to parent process."""
+
+    def __init__(
+        self, dictionary_process: Dict[int, ProcessForWeakSet], queue_process_id: "queue.Queue[ProcessForWeakSet]"
+    ) -> None:
+        self.dictionary_process = dictionary_process
+        self.queue_process_id = queue_process_id
+        self.process_id: Optional[int] = None
+        self.logger = getLogger(__name__)
+
+    def __enter__(self) -> None:
+        self.process_id = os.getpid()
+        process_for_weak_set = ProcessForWeakSet(self.process_id)
+        self.dictionary_process[self.process_id] = process_for_weak_set
+        self.queue_process_id.put(process_for_weak_set)
+
+    # Reason: pylint bug. pylint: disable=unsubscriptable-object
+    def __exit__(
+        self,
+        _exc_type: Optional[Type[BaseException]],
+        _exc_val: Optional[BaseException],
+        _exc_tb: Optional[TracebackType],
+    ) -> Literal[False]:
+        """Terminates current subprocess."""
+        if not self.process_id:
+            # Reason: Difficult to aim to stop before set process id.
+            return False  # pragma: no cover
+        try:
+            self.logger.debug("len(self.dictionary_process): %d", len(self.dictionary_process))
+            self.dictionary_process.pop(self.process_id, None)
+            # # Following:
+            # # RecursionError: maximum recursion depth exceeded
+            # list_process.remove(process_for_weak_set)
+        except (ValueError, BrokenPipeError) as error:
+            self.logger.exception("%s", error)
+        self.logger.debug("Finish run coroutine")
+        return False
+
+
+class LoggingInitializer:
+    """Initializes logging settings for subprocess."""
+
+    def __init__(
+        self, queue_logger: Optional["queue.Queue[LogRecord]"] = None, configurer: Optional[Callable[[], Any]] = None
+    ) -> None:
+        self.queue_logger = queue_logger
+        self.configurer = configurer
+
+    def init(self) -> None:
+        if self.queue_logger:
+            self.set_queue_handler(self.queue_logger)
+        if self.configurer:
+            self.configurer()
+
+    @staticmethod
+    def set_queue_handler(queue_logger: "queue.Queue[LogRecord]") -> Logger:
+        logger = getLogger()
+        handler = handlers.QueueHandler(queue_logger)
+        logger.addHandler(handler)
+        return logger
 
 
 def run(
-    dictionary_process: Dict[int, ProcessForWeakSet],
-    queue_process_id: "queue.Queue[ProcessForWeakSet]",
-    queue_logger: "queue.Queue[LogRecord]",
-    configurer: Optional[Callable[[], Any]],
+    replier: Replier,
+    logging_initializer: Optional[LoggingInitializer],
     corofn: Callable[..., Awaitable[TypeVarReturnValue]],
     *args: Any
 ) -> TypeVarReturnValue:
@@ -73,10 +127,8 @@ def run(
       - Answer: Why coroutines cannot be used with run_in_executor? - Stack Overflow
         https://stackoverflow.com/a/46075571/12721873
     """
-    if queue_logger is not None:
-        set_queue_handler(queue_logger)
-    if configurer is not None:
-        configurer()
+    if logging_initializer:
+        logging_initializer.init()
     logger = getLogger(__name__)
     logger.debug("Start run coroutine")
 
@@ -85,40 +137,23 @@ def run(
         cancel_coroutine(logger)  # pragma: no cover
 
     signal(SIGTERM, sigterm_handler)
-    prosess_id = os.getpid()
-    process_for_weak_set = ProcessForWeakSet(prosess_id)
-    try:
-        dictionary_process[prosess_id] = process_for_weak_set
-        queue_process_id.put(process_for_weak_set)
-        loop = asyncio.new_event_loop()
-        coro = corofn(*args)
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-    # Reason: Testing in Subprocess
-    except KeyboardInterrupt:  # pragma: no cover
-        cancel_coroutine(logger)
-        raise
-    finally:
-        close_if_has_created(loop)
-        terminate_run(logger, dictionary_process, prosess_id)
+    with replier:
+        try:
+            loop = asyncio.new_event_loop()
+            coro = corofn(*args)
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+        # Reason: Testing in Subprocess
+        except KeyboardInterrupt:  # pragma: no cover
+            cancel_coroutine(logger)
+            raise
+        finally:
+            close_if_has_created(loop)
 
 
 def close_if_has_created(loop: Optional[AbstractEventLoop]) -> None:
     if loop is not None:
         loop.close()
-
-
-def terminate_run(logger: Logger, dictionary_process: Dict[int, ProcessForWeakSet], pid: int) -> None:
-    """Terminates current subprocess."""
-    try:
-        logger.debug("len(list_process): %d", len(dictionary_process))
-        dictionary_process.pop(pid, None)
-        # # Following:
-        # # RecursionError: maximum recursion depth exceeded
-        # list_process.remove(process_for_weak_set)
-    except (ValueError, BrokenPipeError) as error:
-        logger.exception("%s", error)
-    logger.debug("Finish run coroutine")
 
 
 def cancel_coroutine(logger: Logger) -> None:

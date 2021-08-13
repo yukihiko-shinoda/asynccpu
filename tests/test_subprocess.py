@@ -18,7 +18,7 @@ import psutil
 import pytest
 from pytest_mock import MockerFixture
 
-from asynccpu.subprocess import ProcessForWeakSet, cancel_coroutine, run
+from asynccpu.subprocess import LoggingInitializer, ProcessForWeakSet, Replier, cancel_coroutine, run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.assert_log import assert_log
 from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
@@ -46,42 +46,34 @@ class TestRun:
     """Test for run()."""
 
     @staticmethod
-    def test_run(
-        manager_dict: Dict[int, ProcessForWeakSet],
-        manager_queue: "queue.Queue[ProcessForWeakSet]",
-        manager_queue_2: "queue.Queue[LogRecord]",
-    ) -> None:
+    def test_run(manager_queue: "queue.Queue[LogRecord]", replier: Replier) -> None:
         """Function: run should run coroutine function from beggining to end."""
         expect = expect_process_cpu_bound(1)
-        actual = run(manager_dict, manager_queue, manager_queue_2, None, process_cpu_bound, 1)
+        logging_initializer = LoggingInitializer(manager_queue)
+        actual = run(replier, logging_initializer, process_cpu_bound, 1)
         assert actual == expect
-        assert_log(manager_queue_2, True, True)
+        assert_log(manager_queue, True, True)
 
     @staticmethod
     def test_run_configure_log(
-        manager_dict: Dict[int, ProcessForWeakSet],
-        manager_queue: "queue.Queue[ProcessForWeakSet]",
-        manager_queue_2: "queue.Queue[LogRecord]",
-        configurer_log_level: Callable[[], None],
+        manager_queue: "queue.Queue[LogRecord]", configurer_log_level: Callable[[], None], replier: Replier
     ) -> None:
         """Function: run should be able to configure log settings."""
         expect = expect_process_cpu_bound(1)
-        actual = run(manager_dict, manager_queue, manager_queue_2, configurer_log_level, process_cpu_bound, 1)
+        logging_initializer = LoggingInitializer(manager_queue, configurer_log_level)
+        actual = run(replier, logging_initializer, process_cpu_bound, 1)
         assert actual == expect
-        assert_log(manager_queue_2, True, False)
+        assert_log(manager_queue, True, False)
 
     @staticmethod
-    def test_run_keyboard_interrupt(
-        manager_dict: Dict[int, ProcessForWeakSet], manager_queue: "queue.Queue[ProcessForWeakSet]"
-    ) -> None:
+    def test_run_keyboard_interrupt(sync_manager: SyncManager) -> None:
         """Function: run should stop by keyboard interupt."""
+        queue_process_id = sync_manager.Queue()
+        replier = Replier(sync_manager.dict(), queue_process_id)
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor:
-            future = cast(
-                "Future[Any]",
-                loop.run_in_executor(executor, run, manager_dict, manager_queue, None, None, keyboard_interrupt),
-            )
-            manager_queue.get()
+            future = cast("Future[Any]", loop.run_in_executor(executor, run, replier, None, keyboard_interrupt))
+            queue_process_id.get()
         assert not future.get_loop().is_running()
         assert not future.done()
 
@@ -122,11 +114,9 @@ class TestRun:
                 sync_mangaer = cast(SyncManager, manager)
                 dictionary_process: Dict[int, ProcessForWeakSet] = sync_mangaer.dict()
                 queue_process_id: "queue.Queue[ProcessForWeakSet]" = sync_mangaer.Queue()
+                replier = Replier(dictionary_process, queue_process_id)
                 future = cast(
-                    "Future[Any]",
-                    loop.run_in_executor(
-                        executor, run, dictionary_process, queue_process_id, None, None, process_cpu_bound, task_id
-                    ),
+                    "Future[Any]", loop.run_in_executor(executor, run, replier, None, process_cpu_bound, task_id),
                 )
                 process: ProcessForWeakSet = queue_process_id.get()
                 assert process.id in dictionary_process

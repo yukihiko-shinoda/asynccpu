@@ -3,9 +3,11 @@
 import queue
 from logging import INFO, getLogger, root
 from multiprocessing.managers import SyncManager
-from typing import Any, Callable, Dict, Generator, cast
+from typing import Any, Callable, Generator, cast
 
 import pytest
+
+from asynccpu.subprocess import Replier
 
 collect_ignore = ["setup.py"]
 
@@ -24,14 +26,8 @@ def manager_queue(sync_manager: SyncManager) -> Generator["queue.Queue[Any]", No
 
 @pytest.fixture
 # Reason: To refer other fixture. pylint: disable=redefined-outer-name
-def manager_queue_2(sync_manager: SyncManager) -> Generator["queue.Queue[Any]", None, None]:
-    yield sync_manager.Queue()
-
-
-@pytest.fixture
-# Reason: To refer other fixture. pylint: disable=redefined-outer-name
-def manager_dict(sync_manager: SyncManager) -> Generator[Dict[Any, Any], None, None]:
-    yield sync_manager.dict()
+def replier(sync_manager: SyncManager) -> Generator[Replier, None, None]:
+    yield Replier(sync_manager.dict(), sync_manager.Queue())
 
 
 def configure_log_level() -> None:
