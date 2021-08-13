@@ -182,7 +182,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         self.logger.debug("exc_type = %s", exc_type)
         self.logger.debug("exc_val = %s", exc_val)
         self.logger.debug("exc_tb = %s", "".join(traceback.format_tb(exc_tb)))
-        self.shutdown(True, cancel_futures=self.cancel_tasks_when_shutdown)
+        self.shutdown(True)
         # pylint can't detect that return value is False:
         # return_value = super().__exit__(exc_type, exc_val, exc_tb)
         self.logger.debug("Exit ProcessTaskPoolExecutor: Finish")
@@ -191,7 +191,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
     # Reason: Can't collect coverage because of termination.
     def sigterm_hander(self, _signum: int, _frame: Optional[Any]) -> None:  # pragma: no cover
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Start")
-        self.shutdown(True, cancel_futures=self.cancel_tasks_when_shutdown)
+        self.shutdown(True)
         signal(SIGTERM, self.original_sigint_handler)
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Finish")
         psutil.Process().terminate()
@@ -208,9 +208,10 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         if cancel_futures:
             self.logger.debug("Shutdown ProcessTaskPoolExecutor: Cancel all process tasks")
             self.process_task_manager.lock_and_cancel_if_not_cancelled()
+        self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown ProcessPoolExecutor")
+        self.call_super_class_shutdown(wait, cancel_futures)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown sync manager")
         self.sync_manager.shutdown()
-        self.call_super_class_shutdown(wait, cancel_futures)
 
     def call_super_class_shutdown(self, wait: bool, cancel_futures: bool) -> None:
         """Calls shutdown() of super class."""
