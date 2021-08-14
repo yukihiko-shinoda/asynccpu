@@ -5,7 +5,7 @@ name = "pypi"
 
 [dev-packages]
 bump2version = "*"
-# Hotgix for Requirementslib which is dependency of Pipenv
+# Hotfix for Requirementslib which is dependency of Pipenv
 # see: https://github.com/sarugaku/requirementslib/issues/296
 chardet = "*"
 # Hotfix for Pipenv's Bug @see https://github.com/pypa/pipenv/issues/4101
