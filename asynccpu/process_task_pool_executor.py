@@ -52,6 +52,7 @@ class ProcessTaskFactory:
         self.dictionary_process: Dict[int, ProcessForWeakSet] = sync_manager.dict()
         self.logging_initializer = logging_initializer
         self.loop = asyncio.get_event_loop()
+        self.logger = getLogger(__name__)
 
     def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> ProcessTask:
         """Creates ProcessTask."""
@@ -63,7 +64,19 @@ class ProcessTaskFactory:
                 self.process_pool_executor, run, replier, self.logging_initializer, function_coroutine, *args,
             ),
         )
-        return ProcessTask(queue_process_id.get(), task)
+        try:
+            return ProcessTask(queue_process_id.get(), task)
+        except BaseException as error:
+            self.logger.debug("%s", error)
+            self.logger.debug(task)
+            cancelled = task.cancelled()
+            self.logger.debug("Cancelled?: %s", cancelled)
+            if cancelled:
+                # Reason: This conditional raise is just in case.
+                raise  # pragma: no cover
+            cancel = task.cancel()
+            self.logger.debug("Cancel succeed?: %s", cancel)
+            raise
 
 
 class ProcessTaskManager:
@@ -84,25 +97,23 @@ class ProcessTaskManager:
         self.timeout_in_emergency = timeout_in_emergency
         self.logger = getLogger(__name__)
 
-    def lock_and_cancel_if_not_cancelled(self) -> None:
+    def lock_and_send_signal(self, signal_number: int) -> None:
         """Cancels task like future if its not cancelled."""
-        self.logger.debug("Lock and cancel if not cancelled: Start")
+        self.logger.debug("Lock and send signal: Start")
         # Reason: requires to set timeout. pylint: disable=consider-using-with
         is_locked = self.lock_for_dictionary_process_task.acquire(timeout=self.timeout_in_emergency)
         self.logger.debug(
-            "Lock and cancel if not cancelled: Locked"
-            if is_locked
-            else "Lock and cancel if not cancelled: Timed out to acquire lock"
+            "Lock and send signal: Locked" if is_locked else "Lock and send signal: Timed out to acquire lock"
         )
-        self.cancel_if_not_cancelled()
-        self.logger.debug("Lock and cancel if not cancelled: Finish")
+        self.send_signal(signal_number)
+        self.logger.debug("Lock and send signal: Finish")
 
-    def cancel_if_not_cancelled(self) -> None:
+    def send_signal(self, signal_number: int) -> None:
         self.logger.debug("Number of running process task: %d", len(self.weak_key_dictionary_process))
         for process_task in self.weak_key_dictionary_process.values():
-            self.logger.debug("Cancel if not cancelled: Start")
-            process_task.cancel_if_not_cancelled()
-            self.logger.debug("Cancel if not cancelled: Finish")
+            self.logger.debug("Send signal: Start")
+            process_task.send_signal(signal_number)
+            self.logger.debug("Send signal: Finish")
 
     def create_process_task(
         self, function_coroutine: Callable[..., Awaitable[TypeVarReturnValue]], *args: Any
@@ -182,7 +193,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         self.logger.debug("exc_type = %s", exc_type)
         self.logger.debug("exc_val = %s", exc_val)
         self.logger.debug("exc_tb = %s", "".join(traceback.format_tb(exc_tb)))
-        self.shutdown(True)
+        self._shutdown(True, signal_number=SIGTERM)
         # pylint can't detect that return value is False:
         # return_value = super().__exit__(exc_type, exc_val, exc_tb)
         self.logger.debug("Exit ProcessTaskPoolExecutor: Finish")
@@ -191,13 +202,18 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
     # Reason: Can't collect coverage because of termination.
     def sigterm_hander(self, _signum: int, _frame: Optional[Any]) -> None:  # pragma: no cover
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Start")
-        self.shutdown(True)
+        self._shutdown(True, signal_number=SIGTERM)
         signal(SIGTERM, self.original_sigint_handler)
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Finish")
         psutil.Process().terminate()
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Sent SIGTERM")
 
     def shutdown(self, wait: bool = True, *, cancel_futures: Optional[bool] = None) -> None:
+        self._shutdown(wait, cancel_futures=cancel_futures)
+
+    def _shutdown(
+        self, wait: bool = True, *, cancel_futures: Optional[bool] = None, signal_number: int = SIGTERM
+    ) -> None:
         """
         Although ProcessPoolExecutor won't cancel any futures that are completed or running
         even if *cancel_futures* is `True`,
@@ -207,7 +223,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
             cancel_futures = self.cancel_tasks_when_shutdown
         if cancel_futures:
             self.logger.debug("Shutdown ProcessTaskPoolExecutor: Cancel all process tasks")
-            self.process_task_manager.lock_and_cancel_if_not_cancelled()
+            self.process_task_manager.lock_and_send_signal(signal_number)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown ProcessPoolExecutor")
         self.call_super_class_shutdown(wait, cancel_futures)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown sync manager")

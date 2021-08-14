@@ -5,7 +5,6 @@ import asyncio
 import queue
 import sys
 import time
-from asyncio.exceptions import CancelledError
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
 
@@ -15,7 +14,7 @@ from multiprocessing.context import Process
 from multiprocessing.managers import SyncManager
 from signal import SIGINT, SIGTERM
 from subprocess import Popen
-from typing import Any, Callable, cast
+from typing import Any, Callable, List, cast
 
 import psutil
 import pytest
@@ -44,7 +43,6 @@ class TestProcessTaskManager:
         with SyncManager() as sync_manager:
             with ProcessPoolExecutor() as executor:
                 task = await self.execute_test(ProcessTaskFactory(executor, cast(SyncManager, sync_manager)))
-        assert task.cancelled()
         assert task.done()
 
     @staticmethod
@@ -54,8 +52,8 @@ class TestProcessTaskManager:
         task = process_task_manager.create_process_task(process_cpu_bound)
         assert not task.done()
         assert not task.cancelled()
-        with pytest.raises(CancelledError):
-            process_task_manager.cancel_if_not_cancelled()
+        with pytest.raises(Terminated):
+            process_task_manager.send_signal(SIGTERM)
             await task
         return task
 
@@ -176,7 +174,19 @@ class TestProcessTaskPoolExecutor:
     # see: https://github.com/giampaolo/psutil/blob/e80cabe5206fd7ef14fd6a47e2571f660f95babf/psutil/_pswindows.py#L875
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     def test_keyboard_interrupt_on_linux(self) -> None:
-        self.assert_keyboard_interrupt(SIGINT)
+        """
+        - Keyboard interrupt should reach to all descendant processes.
+        - Keyboard interrupt should shutdown ProcessTaskPoolExecutor gracefully.
+        """
+        process = Process(target=self.report_raises_keyboard_interrupt)
+        process.start()
+        LocalSocket.receive()
+        time.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
+        self.simulate_ctrl_c_in_posix(process)
+        assert LocalSocket.receive() == "Test succeed"
+        process.join()
+        assert process.exitcode == 0
+        assert not process.is_alive()
 
     @staticmethod
     @pytest.mark.skipif(sys.platform != "win32", reason="test for Windows only")
@@ -210,25 +220,26 @@ class TestProcessTaskPoolExecutor:
             assert LocalSocket.receive() == "Test succeed"
             assert popen.wait() == 0
 
-    @classmethod
-    def assert_keyboard_interrupt(cls, signal_number: int) -> None:
-        """Simulates keyboard interrupt."""
-        process = Process(target=cls.report_raises_keyboard_interrupt)
-        process.start()
-        LocalSocket.receive()
-        time.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
-        psutil_process = psutil.Process(process.pid)
-        psutil_process.send_signal(signal_number)
-        assert LocalSocket.receive() == "Test succeed"
-        assert psutil_process.wait() == 0
-        # Reason: Requires to enhance types-psutil
-        assert not psutil_process.is_running()  # type: ignore
-
     @staticmethod
     def report_raises_keyboard_interrupt() -> None:
         with pytest.raises(KeyboardInterrupt):
             example_use_case_cancel_repost_process_id()
         LocalSocket.send("Test succeed")
+
+    @staticmethod
+    def simulate_ctrl_c_in_posix(process: Process) -> None:
+        """
+        see:
+          - python - Handling keyboard interrupt when using subproccess - Stack Overflow
+            https://stackoverflow.com/a/23839524/12721873
+          - Answer: c++ - Child process receives parent's SIGINT - Stack Overflow
+            https://stackoverflow.com/a/6804155/12721873
+        """
+        psutil_process = psutil.Process(process.pid)
+        child_processes: List[psutil.Process] = psutil_process.children(recursive=True)
+        child_processes.append(psutil_process)
+        for child_process in child_processes:
+            child_process.send_signal(SIGINT)
 
 
 def assert_graceful_shutdown(queue_logger: "queue.Queue[LogRecord]") -> None:
@@ -248,7 +259,7 @@ class LogChecker:
         self.finish_sigterm_hander = False
 
     def check(self, message: str) -> None:
-        if message == "Lock and cancel if not cancelled: Finish":
+        if message == "Lock and send signal: Finish":
             self.finish_lock_and_cancel_if_not_cancelled = True
         elif message == "SIGTERM handler ProcessTaskPoolExecutor: Finish":
             self.finish_sigterm_hander = True

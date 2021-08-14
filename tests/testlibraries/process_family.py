@@ -44,6 +44,9 @@ class ProcessFamily:
         assert not alive
         assert not self.child_process.is_alive()
         assert self.child_process.exitcode == 0
+        self._assert_that_descendant_processes_are_terminated()
+
+    def _assert_that_descendant_processes_are_terminated(self) -> None:
         for grandchild in self.grandchildren:
             # Reason: Requires to enhance types-psutil
             assert not grandchild.is_running()  # type: ignore
