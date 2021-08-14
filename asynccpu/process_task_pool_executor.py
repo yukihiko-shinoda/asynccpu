@@ -8,7 +8,6 @@ import queue
 import sys
 import threading
 import traceback
-import weakref
 from asyncio.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 
@@ -18,12 +17,12 @@ from multiprocessing.context import BaseContext
 from multiprocessing.managers import SyncManager
 from signal import SIGTERM, getsignal, signal
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Type, cast
+from typing import Any, Awaitable, Callable, Dict, Iterable, Literal, Optional, Tuple, Type, cast
 
 import psutil
 
 from asynccpu.process_task import ProcessTask
-from asynccpu.subprocess import LoggingInitializer, ProcessForWeakSet, Replier, run
+from asynccpu.subprocess import LoggingInitializer, Replier, run
 from asynccpu.types import TypeVarReturnValue
 
 __all__ = ["ProcessTaskPoolExecutor"]
@@ -49,11 +48,12 @@ class ProcessTaskFactory:
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f880>>
         # E     -<bound method ProcessForWeakSet.__hash__ of
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f850>>
-        self.dictionary_process: Dict[int, ProcessForWeakSet] = sync_manager.dict()
+        self.dictionary_process: Dict[int, ProcessTask] = sync_manager.dict()
         self.logging_initializer = logging_initializer
         self.loop = asyncio.get_event_loop()
+        self.logger = getLogger(__name__)
 
-    def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> ProcessTask:
+    def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> "Future[Any]":
         """Creates ProcessTask."""
         queue_process_id = self.sync_manager.Queue()
         replier = Replier(self.dictionary_process, queue_process_id)
@@ -63,7 +63,34 @@ class ProcessTaskFactory:
                 self.process_pool_executor, run, replier, self.logging_initializer, function_coroutine, *args,
             ),
         )
-        return ProcessTask(queue_process_id.get(), task)
+        try:
+            queue_process_id.get()
+        except BaseException as error:
+            self.logger.debug("%s", error)
+            self.logger.debug(task)
+            cancelled = task.cancelled()
+            self.logger.debug("Cancelled?: %s", cancelled)
+            if cancelled:
+                # Reason: This conditional raise is just in case.
+                raise  # pragma: no cover
+            cancel = task.cancel()
+            self.logger.debug("Cancel succeed?: %s", cancel)
+            raise
+        return task
+
+    def send_signal(self, signal_number: int) -> None:
+        for process_task in self.items_dictionary_process():
+            self.logger.debug("Send signal: Start")
+            process_task.send_signal(signal_number)
+            self.logger.debug("Send signal: Finish")
+
+    def items_dictionary_process(self) -> Iterable[ProcessTask]:
+        """DictProxy often returns not list but single instance when call items()"""
+        items_dictionary_process = self.dictionary_process.values()
+        self.logger.debug("type(items_dictionary_process)=%s", type(items_dictionary_process))
+        if isinstance(items_dictionary_process, ProcessTask):
+            return [items_dictionary_process]
+        return items_dictionary_process
 
 
 class ProcessTaskManager:
@@ -79,39 +106,27 @@ class ProcessTaskManager:
         timeout_in_emergency: The time to force breaking lock in emergency.
         """
         self.lock_for_dictionary_process_task = threading.Lock()
-        self.weak_key_dictionary_process: "weakref.WeakKeyDictionary[ProcessForWeakSet, ProcessTask]" = weakref.WeakKeyDictionary()  # noqa: E501 pylint: disable=line-too-long
         self.process_task_factory = process_task_factory
         self.timeout_in_emergency = timeout_in_emergency
         self.logger = getLogger(__name__)
 
-    def lock_and_cancel_if_not_cancelled(self) -> None:
+    def lock_and_send_signal(self, signal_number: int) -> None:
         """Cancels task like future if its not cancelled."""
-        self.logger.debug("Lock and cancel if not cancelled: Start")
+        self.logger.debug("Lock and send signal: Start")
         # Reason: requires to set timeout. pylint: disable=consider-using-with
         is_locked = self.lock_for_dictionary_process_task.acquire(timeout=self.timeout_in_emergency)
         self.logger.debug(
-            "Lock and cancel if not cancelled: Locked"
-            if is_locked
-            else "Lock and cancel if not cancelled: Timed out to acquire lock"
+            "Lock and send signal: Locked" if is_locked else "Lock and send signal: Timed out to acquire lock"
         )
-        self.cancel_if_not_cancelled()
-        self.logger.debug("Lock and cancel if not cancelled: Finish")
-
-    def cancel_if_not_cancelled(self) -> None:
-        self.logger.debug("Number of running process task: %d", len(self.weak_key_dictionary_process))
-        for process_task in self.weak_key_dictionary_process.values():
-            self.logger.debug("Cancel if not cancelled: Start")
-            process_task.cancel_if_not_cancelled()
-            self.logger.debug("Cancel if not cancelled: Finish")
+        self.process_task_factory.send_signal(signal_number)
+        self.logger.debug("Lock and send signal: Finish")
 
     def create_process_task(
         self, function_coroutine: Callable[..., Awaitable[TypeVarReturnValue]], *args: Any
     ) -> "Future[TypeVarReturnValue]":
         """Creates task like future by wraping coroutine."""
         with self.lock_for_dictionary_process_task:
-            process_task = self.process_task_factory.create(function_coroutine, *args)
-            self.weak_key_dictionary_process[process_task.process_for_week_set] = process_task
-        return process_task.task
+            return self.process_task_factory.create(function_coroutine, *args)
 
 
 class ProcessTaskPoolExecutor(ProcessPoolExecutor):
@@ -182,7 +197,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         self.logger.debug("exc_type = %s", exc_type)
         self.logger.debug("exc_val = %s", exc_val)
         self.logger.debug("exc_tb = %s", "".join(traceback.format_tb(exc_tb)))
-        self.shutdown(True, cancel_futures=self.cancel_tasks_when_shutdown)
+        self._shutdown(True, signal_number=SIGTERM)
         # pylint can't detect that return value is False:
         # return_value = super().__exit__(exc_type, exc_val, exc_tb)
         self.logger.debug("Exit ProcessTaskPoolExecutor: Finish")
@@ -191,13 +206,18 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
     # Reason: Can't collect coverage because of termination.
     def sigterm_hander(self, _signum: int, _frame: Optional[Any]) -> None:  # pragma: no cover
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Start")
-        self.shutdown(True, cancel_futures=self.cancel_tasks_when_shutdown)
+        self._shutdown(True, signal_number=SIGTERM)
         signal(SIGTERM, self.original_sigint_handler)
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Finish")
         psutil.Process().terminate()
         self.logger.debug("SIGTERM handler ProcessTaskPoolExecutor: Sent SIGTERM")
 
     def shutdown(self, wait: bool = True, *, cancel_futures: Optional[bool] = None) -> None:
+        self._shutdown(wait, cancel_futures=cancel_futures)
+
+    def _shutdown(
+        self, wait: bool = True, *, cancel_futures: Optional[bool] = None, signal_number: int = SIGTERM
+    ) -> None:
         """
         Although ProcessPoolExecutor won't cancel any futures that are completed or running
         even if *cancel_futures* is `True`,
@@ -207,10 +227,11 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
             cancel_futures = self.cancel_tasks_when_shutdown
         if cancel_futures:
             self.logger.debug("Shutdown ProcessTaskPoolExecutor: Cancel all process tasks")
-            self.process_task_manager.lock_and_cancel_if_not_cancelled()
+            self.process_task_manager.lock_and_send_signal(signal_number)
+        self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown ProcessPoolExecutor")
+        self.call_super_class_shutdown(wait, cancel_futures)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown sync manager")
         self.sync_manager.shutdown()
-        self.call_super_class_shutdown(wait, cancel_futures)
 
     def call_super_class_shutdown(self, wait: bool, cancel_futures: bool) -> None:
         """Calls shutdown() of super class."""

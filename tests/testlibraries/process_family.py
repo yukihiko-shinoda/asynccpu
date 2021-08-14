@@ -1,7 +1,6 @@
 """Test stub of terminate_process()."""
 import multiprocessing
-from multiprocessing import synchronize
-from multiprocessing.context import Process
+from multiprocessing import Process, synchronize
 from typing import Any, Callable, List, Optional
 
 import psutil
@@ -44,6 +43,10 @@ class ProcessFamily:
         _, alive = psutil.wait_procs(self.grandchildren, timeout=1)
         assert not alive
         assert not self.child_process.is_alive()
+        assert self.child_process.exitcode == 0
+        self._assert_that_descendant_processes_are_terminated()
+
+    def _assert_that_descendant_processes_are_terminated(self) -> None:
         for grandchild in self.grandchildren:
             # Reason: Requires to enhance types-psutil
             assert not grandchild.is_running()  # type: ignore

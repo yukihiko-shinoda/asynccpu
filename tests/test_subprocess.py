@@ -18,7 +18,8 @@ import psutil
 import pytest
 from pytest_mock import MockerFixture
 
-from asynccpu.subprocess import LoggingInitializer, ProcessForWeakSet, Replier, cancel_coroutine, run
+from asynccpu.process_task import ProcessTask
+from asynccpu.subprocess import LoggingInitializer, Replier, cancel_coroutine, run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.assert_log import assert_log
 from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
@@ -28,18 +29,6 @@ from tests.testlibraries.process_family import ProcessFamily
 async def keyboard_interrupt() -> None:
     await process_cpu_bound()
     _thread.interrupt_main()
-
-
-class TestProcessForWeakSet:
-    """Test for ProcessForWeakSet."""
-
-    @staticmethod
-    def test() -> None:
-        process1 = ProcessForWeakSet(1)
-        process2 = ProcessForWeakSet(1)
-        list_process = [process1]
-        assert list_process[0] == process1
-        assert list_process[0] != process2
 
 
 class TestRun:
@@ -112,13 +101,13 @@ class TestRun:
         with ProcessPoolExecutor() as executor:
             with SyncManager() as manager:
                 sync_mangaer = cast(SyncManager, manager)
-                dictionary_process: Dict[int, ProcessForWeakSet] = sync_mangaer.dict()
-                queue_process_id: "queue.Queue[ProcessForWeakSet]" = sync_mangaer.Queue()
+                dictionary_process: Dict[int, ProcessTask] = sync_mangaer.dict()
+                queue_process_id: "queue.Queue[ProcessTask]" = sync_mangaer.Queue()
                 replier = Replier(dictionary_process, queue_process_id)
                 future = cast(
                     "Future[Any]", loop.run_in_executor(executor, run, replier, None, process_cpu_bound, task_id),
                 )
-                process: ProcessForWeakSet = queue_process_id.get()
+                process: ProcessTask = queue_process_id.get()
                 assert process.id in dictionary_process
                 return future
 
@@ -156,6 +145,6 @@ class TestCancelCoroutine:
     @staticmethod
     def test_unit(mocker: MockerFixture) -> None:
         mock_terminate_processes = mocker.MagicMock()
-        mocker.patch("asynccpu.subprocess.terminate_processes", mock_terminate_processes)
+        mocker.patch("asynccpu.subprocess.terminate_descendant_processes", mock_terminate_processes)
         cancel_coroutine(getLogger())
         mock_terminate_processes.assert_called_once_with(os.getpid())
