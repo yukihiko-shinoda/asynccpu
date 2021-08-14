@@ -8,7 +8,6 @@ import queue
 import sys
 import threading
 import traceback
-import weakref
 from asyncio.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 
@@ -18,12 +17,12 @@ from multiprocessing.context import BaseContext
 from multiprocessing.managers import SyncManager
 from signal import SIGTERM, getsignal, signal
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Tuple, Type, cast
+from typing import Any, Awaitable, Callable, Dict, Iterable, Literal, Optional, Tuple, Type, cast
 
 import psutil
 
 from asynccpu.process_task import ProcessTask
-from asynccpu.subprocess import LoggingInitializer, ProcessForWeakSet, Replier, run
+from asynccpu.subprocess import LoggingInitializer, Replier, run
 from asynccpu.types import TypeVarReturnValue
 
 __all__ = ["ProcessTaskPoolExecutor"]
@@ -49,12 +48,12 @@ class ProcessTaskFactory:
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f880>>
         # E     -<bound method ProcessForWeakSet.__hash__ of
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f850>>
-        self.dictionary_process: Dict[int, ProcessForWeakSet] = sync_manager.dict()
+        self.dictionary_process: Dict[int, ProcessTask] = sync_manager.dict()
         self.logging_initializer = logging_initializer
         self.loop = asyncio.get_event_loop()
         self.logger = getLogger(__name__)
 
-    def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> ProcessTask:
+    def create(self, function_coroutine: Callable[..., Awaitable[Any]], *args: Any) -> "Future[Any]":
         """Creates ProcessTask."""
         queue_process_id = self.sync_manager.Queue()
         replier = Replier(self.dictionary_process, queue_process_id)
@@ -65,7 +64,7 @@ class ProcessTaskFactory:
             ),
         )
         try:
-            return ProcessTask(queue_process_id.get(), task)
+            queue_process_id.get()
         except BaseException as error:
             self.logger.debug("%s", error)
             self.logger.debug(task)
@@ -77,6 +76,21 @@ class ProcessTaskFactory:
             cancel = task.cancel()
             self.logger.debug("Cancel succeed?: %s", cancel)
             raise
+        return task
+
+    def send_signal(self, signal_number: int) -> None:
+        for process_task in self.items_dictionary_process():
+            self.logger.debug("Send signal: Start")
+            process_task.send_signal(signal_number)
+            self.logger.debug("Send signal: Finish")
+
+    def items_dictionary_process(self) -> Iterable[ProcessTask]:
+        """DictProxy often returns not list but single instance when call items()"""
+        items_dictionary_process = self.dictionary_process.values()
+        self.logger.debug("type(items_dictionary_process)=%s", type(items_dictionary_process))
+        if isinstance(items_dictionary_process, ProcessTask):
+            return [items_dictionary_process]
+        return items_dictionary_process
 
 
 class ProcessTaskManager:
@@ -92,7 +106,6 @@ class ProcessTaskManager:
         timeout_in_emergency: The time to force breaking lock in emergency.
         """
         self.lock_for_dictionary_process_task = threading.Lock()
-        self.weak_key_dictionary_process: "weakref.WeakKeyDictionary[ProcessForWeakSet, ProcessTask]" = weakref.WeakKeyDictionary()  # noqa: E501 pylint: disable=line-too-long
         self.process_task_factory = process_task_factory
         self.timeout_in_emergency = timeout_in_emergency
         self.logger = getLogger(__name__)
@@ -105,24 +118,15 @@ class ProcessTaskManager:
         self.logger.debug(
             "Lock and send signal: Locked" if is_locked else "Lock and send signal: Timed out to acquire lock"
         )
-        self.send_signal(signal_number)
+        self.process_task_factory.send_signal(signal_number)
         self.logger.debug("Lock and send signal: Finish")
-
-    def send_signal(self, signal_number: int) -> None:
-        self.logger.debug("Number of running process task: %d", len(self.weak_key_dictionary_process))
-        for process_task in self.weak_key_dictionary_process.values():
-            self.logger.debug("Send signal: Start")
-            process_task.send_signal(signal_number)
-            self.logger.debug("Send signal: Finish")
 
     def create_process_task(
         self, function_coroutine: Callable[..., Awaitable[TypeVarReturnValue]], *args: Any
     ) -> "Future[TypeVarReturnValue]":
         """Creates task like future by wraping coroutine."""
         with self.lock_for_dictionary_process_task:
-            process_task = self.process_task_factory.create(function_coroutine, *args)
-            self.weak_key_dictionary_process[process_task.process_for_week_set] = process_task
-        return process_task.task
+            return self.process_task_factory.create(function_coroutine, *args)
 
 
 class ProcessTaskPoolExecutor(ProcessPoolExecutor):

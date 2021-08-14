@@ -1,28 +1,48 @@
 """Model module of process task."""
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from asyncio.futures import Future
-from logging import getLogger
 
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from typing import Any
+from logging import getLogger
 
 import psutil
 
-from asynccpu.subprocess import ProcessForWeakSet
-
 
 class ProcessTask:
-    """Model class of process task."""
+    """
+    None of following specification is not required now.
+    These specification will be removed if we got prospect that it's not required in the future too.
 
-    def __init__(self, process_for_week_set: ProcessForWeakSet, task: "Future[Any]") -> None:
-        self.process_for_week_set = process_for_week_set
-        self.task = task
+    This class is designed as:
+    - Picklable to set SyncManager.list()
+      E    object is not picklable
+    - Hashable to use for key of weakset:
+      E    TypeError: unhashable type
+
+    Since psutil.Process is not picklable.
+
+    see:
+    Answer: python - Using an object's id() as a hash value - Stack Overflow
+    https://stackoverflow.com/a/55086062/12721873
+    Answer: python - What makes a user-defined class unhashable? - Stack Overflow
+    https://stackoverflow.com/a/29434112/12721873
+    Answer: python - How can I make class properties immutable? - Stack Overflow
+    https://stackoverflow.com/a/43486647/12721873
+    """
+
+    def __init__(self, process_id: int) -> None:
+        self._id = (process_id,)
         self.logger = getLogger(__name__)
+
+    @property
+    # Reason: It's no problem to consider that "id" is snake_case. pylint: disable=invalid-name
+    def id(self) -> int:
+        return self._id[0]
+
+    def __hash__(self) -> int:
+        return hash(self._id)
 
     def send_signal(self, signal_number: int) -> None:
         """Cancels task like future if its not cancelled."""
         try:
-            psutil.Process(self.process_for_week_set.id).send_signal(signal_number)
+            psutil.Process(self.id).send_signal(signal_number)
         # Reason: Can't crate code to reach following line.
         except psutil.NoSuchProcess as error:  # pragma: no cover
             self.logger.debug("%s", error)

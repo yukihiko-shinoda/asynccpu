@@ -21,7 +21,7 @@ import pytest
 
 # Reason: Following export method in __init__.py from Effective Python 2nd Edition item 85
 from asynccpu import ProcessTaskPoolExecutor  # type: ignore
-from asynccpu.process_task_pool_executor import ProcessTaskFactory, ProcessTaskManager
+from asynccpu.process_task_pool_executor import ProcessTaskFactory
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_SHORT, SECOND_SLEEP_FOR_TEST_SHORT
 from tests.testlibraries.assert_log import assert_log
 from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
@@ -34,8 +34,8 @@ if sys.platform == "win32":
     from subprocess import CREATE_NEW_PROCESS_GROUP
 
 
-class TestProcessTaskManager:
-    """Test for ProcessTaskManager."""
+class TestProcessTaskFactory:
+    """Test for TestProcessTaskFactory."""
 
     @pytest.mark.asyncio
     async def test(self) -> None:
@@ -48,12 +48,12 @@ class TestProcessTaskManager:
     @staticmethod
     async def execute_test(process_task_factory: ProcessTaskFactory) -> "Future[Any]":
         """Executes test."""
-        process_task_manager = ProcessTaskManager(process_task_factory)
-        task = process_task_manager.create_process_task(process_cpu_bound)
+        task = process_task_factory.create(process_cpu_bound)
         assert not task.done()
         assert not task.cancelled()
         with pytest.raises(Terminated):
-            process_task_manager.send_signal(SIGTERM)
+            await asyncio.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
+            process_task_factory.send_signal(SIGTERM)
             await task
         return task
 
