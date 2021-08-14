@@ -1,5 +1,6 @@
 """Test for process_task.py."""
 import asyncio
+import sys
 from asyncio.events import get_event_loop
 from asyncio.exceptions import CancelledError
 
@@ -7,7 +8,6 @@ from asyncio.exceptions import CancelledError
 from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
 from signal import SIGTERM
-import sys
 
 # Reason: To support Python 3.8 or less pylint: disable=unused-import
 from typing import Any, Type, cast
@@ -44,7 +44,6 @@ class TestProcessTask:
     # see:
     #     - Windows: signal doc should state certains signals can't be registered
     #       https://bugs.python.org/issue26350
-    @staticmethod
     @pytest.mark.asyncio
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     async def test_send_signal(self) -> None:
