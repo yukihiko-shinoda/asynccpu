@@ -37,7 +37,12 @@ if sys.platform == "win32":
 class TestProcessTaskFactory:
     """Test for TestProcessTaskFactory."""
 
+    # Since Python can't trap signal.SIGTERM in Windows.
+    # see:
+    #     - Windows: signal doc should state certains signals can't be registered
+    #       https://bugs.python.org/issue26350
     @pytest.mark.asyncio
+    @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     async def test(self) -> None:
         """Method: cancel_if_not_cancelled() should cancel task."""
         with SyncManager() as sync_manager:
@@ -102,7 +107,7 @@ class TestProcessTaskPoolExecutor:
     # Since Python can't trap signal.SIGTERM in Windows.
     # see:
     #     - Windows: signal doc should state certains signals can't be registered
-    #     https://bugs.python.org/issue26350
+    #       https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     @pytest.mark.asyncio
@@ -128,7 +133,7 @@ class TestProcessTaskPoolExecutor:
     # Since Python can't trap signal.SIGTERM in Windows.
     # see:
     #     - Windows: signal doc should state certains signals can't be registered
-    #     https://bugs.python.org/issue26350
+    #       https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     def test_terminate(manager_queue: "queue.Queue[LogRecord]") -> None:
@@ -154,7 +159,7 @@ class TestProcessTaskPoolExecutor:
     # Since Python can't trap signal.SIGTERM in Windows.
     # see:
     #     - Windows: signal doc should state certains signals can't be registered
-    #     https://bugs.python.org/issue26350
+    #       https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     def test_sigterm(manager_queue: "queue.Queue[LogRecord]") -> None:
