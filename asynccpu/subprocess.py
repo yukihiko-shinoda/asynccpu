@@ -12,7 +12,7 @@ from signal import SIGTERM, signal
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Type
 
-from asynccpu.process_terminator import terminate_processes
+from asynccpu.process_terminator import terminate_descendant_processes
 from asynccpu.types import TypeVarReturnValue
 
 
@@ -165,4 +165,4 @@ def cancel_coroutine(logger: Logger) -> None:
         https://stackoverflow.com/a/45515052/12721873
     """
     logger.info("Cancel run coroutine")
-    terminate_processes(os.getpid())
+    terminate_descendant_processes(os.getpid())

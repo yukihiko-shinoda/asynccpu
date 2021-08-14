@@ -27,7 +27,7 @@ class ProcessTerminator:
         process.terminate()
 
 
-def terminate_processes(parent_pid: int, *, force: bool = False) -> None:
+def terminate_descendant_processes(parent_pid: int, *, force: bool = False) -> None:
     """
     This method doesn't have parameter for sending signal
     since psutil seems to being blackbox the difference between Linux and Windows.
@@ -39,5 +39,3 @@ def terminate_processes(parent_pid: int, *, force: bool = False) -> None:
     logger.debug("Terminate child processes")
     for process in children:
         process_terminator.execute(process)
-    logger.debug("Terminate target processes")
-    process_terminator.execute(parent)

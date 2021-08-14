@@ -156,6 +156,6 @@ class TestCancelCoroutine:
     @staticmethod
     def test_unit(mocker: MockerFixture) -> None:
         mock_terminate_processes = mocker.MagicMock()
-        mocker.patch("asynccpu.subprocess.terminate_processes", mock_terminate_processes)
+        mocker.patch("asynccpu.subprocess.terminate_descendant_processes", mock_terminate_processes)
         cancel_coroutine(getLogger())
         mock_terminate_processes.assert_called_once_with(os.getpid())

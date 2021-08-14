@@ -12,6 +12,9 @@ from asynccpu.subprocess import Replier
 collect_ignore = ["setup.py"]
 
 
+pytest.register_assert_rewrite("tests.testlibraries.process_family")
+
+
 @pytest.fixture
 def sync_manager() -> Generator[SyncManager, None, None]:
     with SyncManager() as manager:
