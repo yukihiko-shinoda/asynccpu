@@ -101,7 +101,7 @@ Ex:
 ```python
 import asyncio
 import multiprocessing
-from logging import DEBUG, StreamHandler, Formatter, handlers
+from logging import DEBUG, Formatter, StreamHandler, getLogger, handlers
 from asynccpu import ProcessTaskPoolExecutor
 
 
@@ -113,7 +113,7 @@ def listener_configurer():
 
 
 def worker_configurer():
-    root_logger = multiprocessing.getLogger()
+    root_logger = getLogger()
     root_logger.setLevel(DEBUG)
 
 
