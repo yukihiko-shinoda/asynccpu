@@ -22,7 +22,7 @@ import pytest
 # Reason: Following export method in __init__.py from Effective Python 2nd Edition item 85
 from asynccpu import ProcessTaskPoolExecutor  # type: ignore
 from asynccpu.process_task_pool_executor import ProcessTaskFactory
-from tests.testlibraries import SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_SHORT, SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE, SECOND_SLEEP_FOR_TEST_SHORT
 from tests.testlibraries.assert_log import assert_log
 from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
 from tests.testlibraries.example_use_case import example_use_case, example_use_case_cancel_repost_process_id
@@ -207,7 +207,7 @@ class TestProcessTaskPoolExecutor:
 
     @staticmethod
     @pytest.mark.skipif(sys.platform != "win32", reason="test for Windows only")
-    def test_keyboard_interrupt_ctrl_c_popen() -> None:
+    def test_keyboard_interrupt_ctrl_c_new_process_group() -> None:
         """
         see:
           - On Windows, what is the python launcher 'py' doing that lets control-C cross between process groups?
@@ -220,7 +220,7 @@ class TestProcessTaskPoolExecutor:
             # Reason: Definition of following constant is Windows only
             creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore
         ) as popen:
-            asyncio.run(asyncio.sleep(SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_SHORT))
+            asyncio.run(asyncio.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE))
             LocalSocket.send(str(popen.pid))
             assert LocalSocket.receive() == "Test succeed"
             assert popen.wait() == 0
