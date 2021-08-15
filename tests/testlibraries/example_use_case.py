@@ -47,7 +47,7 @@ async def example_use_case(
 
 def example_use_case_method(queue_logger: Optional["queue.Queue[LogRecord]"] = None) -> Generator[str, None, None]:
     with ProcessTaskPoolExecutor(max_workers=3, cancel_tasks_when_shutdown=True, queue=queue_logger) as executor:
-        futures = (executor.create_process_task(process_cpu_bound, x) for x in range(10))
+        futures = [executor.create_process_task(process_cpu_bound, x) for x in range(10)]
         FutureWaiter.wait(futures)
         return (future.result() for future in futures)
 

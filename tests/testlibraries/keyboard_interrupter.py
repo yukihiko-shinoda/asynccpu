@@ -36,6 +36,7 @@ class KeyboardInterrupter:
             self.logger.exception(error)
             traceback.print_exc()
             LocalSocket.send("Test failed")
+            raise
         else:
             LocalSocket.send("Test succeed")
         finally:
