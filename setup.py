@@ -45,6 +45,6 @@ if __name__ == "__main__":
         test_suite="tests",
         tests_require=["pytest>=3"],
         url="https://github.com/yukihiko-shinoda/asynccpu",
-        version="1.2.1",
+        version="1.2.2",
         zip_safe=False,
     )
