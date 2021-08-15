@@ -5,6 +5,7 @@ see: https://docs.python.org/3/library/asyncio-eventloop.html#executing-code-in-
 
 import os
 import time
+from datetime import datetime
 from logging import getLogger
 from multiprocessing.connection import Connection
 from signal import SIGTERM, signal
@@ -32,24 +33,29 @@ def cpu_bound(task_id: Optional[int] = None, send_process_id: bool = False) -> s
     CPU-bound operations will block the event loop:
     in general it is preferable to run them in a process pool.
     """
-    logger = getLogger(__name__)
+    try:
+        logger = getLogger(__name__)
 
-    def hander(_signum: int, _frame: Optional[Any]) -> NoReturn:
-        logger.info("CPU-bound: Terminate")
-        raise Terminated()
+        def hander(_signum: int, _frame: Optional[Any]) -> NoReturn:
+            logger.info("CPU-bound: Terminate")
+            raise Terminated()
 
-    signal(SIGTERM, hander)
-    process_id = os.getpid()
-    print(process_id)
-    logger.info("CPU-bound: process id = %d", process_id)
-    if send_process_id:
-        time.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE)
-        logger.info("CPU-bound: Send process id")
-        LocalSocket.send(str(process_id))
-    logger.info("CPU-bound: Start")
-    result = sum(i * i for i in range(10 ** 7))
-    logger.debug("CPU-bound: Finish")
-    return ("" if task_id is None else f"task_id: {task_id}, ") + f"result: {result}"
+        signal(SIGTERM, hander)
+        process_id = os.getpid()
+        print(process_id)
+        logger.info("CPU-bound: process id = %d", process_id)
+        if send_process_id:
+            time.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE)
+            logger.info("CPU-bound: Send process id")
+            LocalSocket.send(str(process_id))
+        logger.info("CPU-bound: Start")
+        result = sum(i * i for i in range(10 ** 7))
+        logger.debug("CPU-bound: Finish")
+        logger.debug("%d %s", task_id, datetime.now())
+        return ("" if task_id is None else f"task_id: {task_id}, ") + f"result: {result}"
+    except KeyboardInterrupt:
+        logger.info("CPU-bound: KeyboardInterupt")
+        raise
 
 
 def expect_process_cpu_bound(task_id: Optional[int] = None) -> str:

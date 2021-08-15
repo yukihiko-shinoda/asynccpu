@@ -225,7 +225,14 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         """
         if cancel_futures is None:
             cancel_futures = self.cancel_tasks_when_shutdown
-        if cancel_futures:
+        # In Windows, it should not send SIGTERM.
+        # It will propergate KeyboardInterrupt to all processes including parent process.
+        # see:
+        # - windows - Trying to implement `signal.CTRL_C_EVENT` in Python3.6 - Stack Overflow
+        #   https://stackoverflow.com/a/44147750/12721873
+        # - How to handle the signal in python on windows machine - Stack Overflow
+        #   https://stackoverflow.com/a/35792192/12721873
+        if cancel_futures and sys.platform != "win32":
             self.logger.debug("Shutdown ProcessTaskPoolExecutor: Cancel all process tasks")
             self.process_task_manager.lock_and_send_signal(signal_number)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown ProcessPoolExecutor")
