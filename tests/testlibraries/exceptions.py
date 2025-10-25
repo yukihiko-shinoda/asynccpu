@@ -2,11 +2,12 @@
 
 
 class Error(Exception):
-    """
-    Base class for exceptions in this module.
+    """Base class for exceptions in this module.
+
     @see https://docs.python.org/3/tutorial/errors.html#user-defined-exceptions
     """
 
 
-class Terminated(Error):
+# Reason: This is not exception in business logic.
+class Terminated(Error):  # noqa: N818
     """Terminated."""

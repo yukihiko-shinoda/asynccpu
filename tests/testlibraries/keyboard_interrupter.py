@@ -1,39 +1,108 @@
 """To keep task property even raise KeyboardInterrupt."""
-import asyncio
-import os
 
-# Reason: For type hint. pylint: disable=unused-import
-import queue
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import os
 import signal
 import traceback
-from asyncio.tasks import Task
-
-# Reason: For type hint. pylint: disable=unused-import
-from logging import DEBUG, LogRecord, getLogger
+from logging import DEBUG
+from logging import getLogger
 from multiprocessing import Manager
-from typing import Any, Awaitable, Callable, Optional
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Awaitable
 
 from tests.testlibraries.example_use_case import example_use_case
 from tests.testlibraries.local_socket import LocalSocket
 
+if TYPE_CHECKING:
+    import queue
+    from collections.abc import Coroutine
+    from logging import LogRecord
 
-class KeyboardInterrupter:
+
+class ExampleUseCaseForTesting:
+    """The example use case tester of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+
+    def __init__(self) -> None:
+        self.manager = Manager()
+        self.queue_logger: queue.Queue[LogRecord] = self.manager.Queue(-1)
+        self.coroutine = example_use_case(queue_logger=self.queue_logger, configurer=self.set_log_level_as_debug())
+
+    @staticmethod
+    def set_log_level_as_debug() -> None:
+        root_logger = getLogger()
+        root_logger.setLevel(DEBUG)
+
+    async def await_and_raise(self) -> None:
+        """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+        await self.coroutine
+        msg = "Keyboard interrupt isn't received."
+        raise AssertionError(msg)
+
+    def expected_log_exists(self) -> bool:
+        """Checks expected log exists or not.
+
+        Returns:
+            True: Expected log exists.
+            False: Expected log does not exist.
+        """
+        while not self.queue_logger.empty():
+            message = self.queue_logger.get().message
+            # Reason: This process runs as asyncio task that cannot log by logger.
+            print(message)  # noqa: T201
+            if message == "CPU-bound: KeyboardInterrupt":
+                return True
+        return False
+
+
+class AsyncioEventLoopForTestingKeyboardInterrupt:
     """To keep task property even raise KeyboardInterrupt."""
 
-    def __init__(self, get_process_id: Awaitable[int]) -> None:
-        self.get_process_id = get_process_id
-        # Reason: pytest bug. pylint: disable=unsubscriptable-object
-        self.task: Optional[Task[Any]] = None
-        self.manager = Manager()
-        self.queue_log_record: "queue.Queue[LogRecord]" = self.manager.Queue(-1)
+    def __init__(
+        self,
+        target_process: Coroutine[Any, Any, Any],
+        awaitable_starting_target_process: Awaitable[int],
+    ) -> None:
+        self.target_process = target_process
+        self.awaitable_starting_target_process = awaitable_starting_target_process
         self.logger = getLogger(__name__)
 
     def test_keyboard_interrupt(self) -> None:
+        with contextlib.suppress(KeyboardInterrupt):
+            asyncio.run(self.start_target_process_and_interrupt_it())
+
+    async def start_target_process_and_interrupt_it(self) -> None:
+        """Simulates keyboard interrupt by CTRL_C_EVENT."""
+        self.logger.debug("Create task")
+        task = asyncio.create_task(self.target_process)
+        process_id = await self.awaitable_starting_target_process
+        # Reason: only for Windows. pylint: disable=no-member
+        os.kill(process_id, signal.CTRL_C_EVENT)  # type: ignore[attr-defined]
+        self.logger.debug("Await task")
+        await task
+
+
+class TestingKeyboardInterrupt:
+    """To test keyboard interrupt."""
+
+    def __init__(self, awaitable_starting_process: Awaitable[int]) -> None:
+        self.example_use_case_for_testing = ExampleUseCaseForTesting()
+        self.asyncio_event_loop_for_testing_keyboard_interrupt = AsyncioEventLoopForTestingKeyboardInterrupt(
+            self.example_use_case_for_testing.await_and_raise(),
+            awaitable_starting_process,
+        )
+        self.logger = getLogger(__name__)
+
+    def execute_test_and_report_result_to_pytest_process(self) -> None:
         """Tests keyboard interrupt and send response to pytest by socket when succeed."""
         try:
-            self.test()
-        except BaseException as error:
-            self.logger.exception(error)
+            self.execute_test()
+        except BaseException:
+            # To send result to pytest even if unexpected error occurred.
+            self.logger.exception("Unexpected error occurred")
             traceback.print_exc()
             LocalSocket.send("Test failed")
             raise
@@ -42,45 +111,8 @@ class KeyboardInterrupter:
         finally:
             asyncio.run(asyncio.sleep(10))
 
-    async def keyboard_interrupt(self) -> None:
-        """Simulates keyboard interrupt by CTRL_C_EVENT."""
-        print("Create task")
-        coroutine = self.run_example_use_case_and_raise(self.queue_log_record, set_log_level_as_debug)
-        self.task = asyncio.create_task(coroutine)
-        process_id = await self.get_process_id
-        # Reason: only for Windows. pylint: disable=no-member
-        os.kill(process_id, signal.CTRL_C_EVENT)  # type: ignore
-        print("Await task")
-        await self.task
-
-    @staticmethod
-    async def run_example_use_case_and_raise(
-        queue_logger: "queue.Queue[LogRecord]", worker_configurer: Optional[Callable[[], Any]]
-    ) -> None:
-        """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
-        await example_use_case(queue_logger=queue_logger, configurer=worker_configurer)
-        raise Exception("Keyboard interrupt isn't received.")
-
-    def test(self) -> None:
-        try:
-            asyncio.run(self.keyboard_interrupt())
-        except KeyboardInterrupt:
-            pass
-        assert self.expected_log_exists(), "Expected log not found"
-
-    def expected_log_exists(self) -> bool:
-        """
-        True: Expected log exists.
-        False: Expected log does not exist.
-        """
-        while not self.queue_log_record.empty():
-            message = self.queue_log_record.get().message
-            print(message)
-            if message == "CPU-bound: KeyboardInterupt":
-                return True
-        return False
-
-
-def set_log_level_as_debug() -> None:
-    root_logger = getLogger()
-    root_logger.setLevel(DEBUG)
+    def execute_test(self) -> None:
+        self.asyncio_event_loop_for_testing_keyboard_interrupt.test_keyboard_interrupt()
+        if not self.example_use_case_for_testing.expected_log_exists():
+            msg = "Expected log does not exist."
+            raise AssertionError(msg)
