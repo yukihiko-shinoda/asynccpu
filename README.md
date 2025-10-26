@@ -1,12 +1,12 @@
 # Asynchronous CPU
 
 [![Test](https://github.com/yukihiko-shinoda/asynccpu/workflows/Test/badge.svg)](https://github.com/yukihiko-shinoda/asynccpu/actions?query=workflow%3ATest)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/897e1ce2259cf3479da8/test_coverage)](https://codeclimate.com/github/yukihiko-shinoda/asynccpu/test_coverage)
-[![Maintainability](https://api.codeclimate.com/v1/badges/897e1ce2259cf3479da8/maintainability)](https://codeclimate.com/github/yukihiko-shinoda/asynccpu/maintainability)
-[![Code Climate technical debt](https://img.shields.io/codeclimate/tech-debt/yukihiko-shinoda/asynccpu)](https://codeclimate.com/github/yukihiko-shinoda/asynccpu)
-[![Updates](https://pyup.io/repos/github/yukihiko-shinoda/asynccpu/shield.svg)](https://pyup.io/repos/github/yukihiko-shinoda/asynccpu/)
+[![CodeQL](https://github.com/yukihiko-shinoda/asynccpu/workflows/CodeQL/badge.svg)](https://github.com/yukihiko-shinoda/asynccpu/actions?query=workflow%3ACodeQL)
+[![Code Coverage](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu/coverage.svg)](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu)
+[![Maintainability](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu/maintainability.svg)](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu)
+[![Dependabot](https://flat.badgen.net/github/dependabot/yukihiko-shinoda/asynccpu?icon=dependabot)](https://github.com/yukihiko-shinoda/asynccpu/security/dependabot)
 [![Python versions](https://img.shields.io/pypi/pyversions/asynccpu.svg)](https://pypi.org/project/asynccpu)
-[![Twitter URL](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fyukihiko-shinoda%2Fasynccpu)](http://twitter.com/share?text=Asynchronous%20CPU&url=https://pypi.org/project/asynccpu/&hashtags=python)
+[![X URL](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fyukihiko-shinoda%2Fasynccpu)](https://x.com/intent/post?text=Asynchronous%20CPU&url=https%3A%2F%2Fpypi.org%2Fproject%2Fasynccpu%2F&hashtags=python)
 
 Supports async / await pattern for CPU-bound operations.
 
