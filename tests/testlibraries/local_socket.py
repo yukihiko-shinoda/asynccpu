@@ -16,13 +16,15 @@ class LocalSocket:
     # see: https://github.community/t/what-is-the-default-firewall-for-github-actions-runners/17732
     PORT = 8080
     TIME_TO_ALLOW_ACCESS = 1
-    TIMEOUT = SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_MIDDLE
+    TIMEOUT_TO = 10
+    TIMEOUT_FROM = SECOND_SLEEP_FOR_TEST_KEYBOARD_INTERRUPT_CTRL_C_POPEN_MIDDLE
     MAX_BUFFER_SIZE = 1024
     SOCKET_REUSE_ADDRESS_ENABLE = 1
 
     @staticmethod
     def send(message: str) -> None:
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as socket_to:
+            socket_to.settimeout(LocalSocket.TIMEOUT_TO)
             socket_to.connect((LocalSocket.HOST, LocalSocket.PORT))
             socket_to.send(bytes(message, LocalSocket.ENCODING))
 
@@ -30,7 +32,7 @@ class LocalSocket:
     def receive() -> str:
         """Receives message."""
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as socket_from:
-            socket_from.settimeout(LocalSocket.TIMEOUT)
+            socket_from.settimeout(LocalSocket.TIMEOUT_FROM)
             # see:
             #   - https://docs.python.org/ja/3/library/socket.html#example
             #   - Answer: Python server “Only one usage of each socket address is normally permitted”

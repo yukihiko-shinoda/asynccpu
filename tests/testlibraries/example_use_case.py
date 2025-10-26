@@ -17,6 +17,7 @@ import pytest
 
 from asynccpu import ProcessTaskPoolExecutor
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries import SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C
 from tests.testlibraries.cpu_bound import process_cpu_bound
 from tests.testlibraries.future_waiter import FutureWaiter
 from tests.testlibraries.local_socket import LocalSocket
@@ -75,5 +76,7 @@ def example_use_case_cancel_repost_process_id(
         logger.setLevel(DEBUG)
     results = example_use_case_method(queue_sub)
     results_string = repr(results)
+    # Without sleep, it's so early that test function can't start waiting for sending after simulate Ctrl-C.
+    time.sleep(SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C)
     LocalSocket.send(results_string)
     pytest.fail(results_string)
