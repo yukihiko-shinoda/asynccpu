@@ -74,12 +74,26 @@ class ProcessTaskFactory:
         **kwargs: ParamSpecCoroutineFunctionArguments.kwargs,
     ) -> Future[TypeVarReturnValue]:
         """Creates ProcessTask."""
-        queue_process_id = self.sync_manager.Queue()
+        try:
+            queue_process_id = self.sync_manager.Queue()
+        except InterruptedError as error:
+            # On Windows, CTRL_C_EVENT raises InterruptedError during blocking operations
+            # Convert to KeyboardInterrupt for consistent handling across platforms
+            self.logger.debug("InterruptedError during Queue creation: %s", error)
+            raise KeyboardInterrupt from error
         replier = Replier(self.dictionary_process, queue_process_id)
         partial_func = partial(run, replier, self.logging_initializer, function_coroutine, **kwargs)
         task = self.loop.run_in_executor(self.process_pool_executor, partial_func, *args)
         try:
             queue_process_id.get()
+        except InterruptedError as error:
+            # On Windows, CTRL_C_EVENT raises InterruptedError during blocking operations
+            # Convert to KeyboardInterrupt for consistent handling across platforms
+            self.logger.debug("InterruptedError during queue get: %s", error)
+            self.logger.debug(task)
+            cancel = task.cancel()
+            self.logger.debug("Cancel succeed?: %s", cancel)
+            raise KeyboardInterrupt from error
         except BaseException as error:
             self.logger.debug("%s", error)
             self.logger.debug(task)

@@ -5,7 +5,10 @@ see: https://docs.python.org/3/library/asyncio-eventloop.html#executing-code-in-
 
 from __future__ import annotations
 
+import logging
+import logging.handlers
 import os
+import sys
 import time
 from datetime import datetime
 from datetime import timezone
@@ -41,6 +44,42 @@ def process_cpu_bound_method(
         connection.send(result)
 
 
+def log_info_keyboard_interrupt_for_windows(logger: logging.Logger) -> None:  # pragma: no cover
+    """On Windows, directly create and emit a log record to ensure it reaches the queue.
+
+    The standard logging might not work due to Windows/multiprocessing issues
+    """
+    root_logger = getLogger()
+
+    # Try to manually put the log record on the queue if QueueHandler exists
+    for log_handler in list(logger.handlers) + list(root_logger.handlers):
+        if isinstance(log_handler, logging.handlers.QueueHandler):
+            # Manually create a log record and emit it
+            record = logger.makeRecord(
+                logger.name,
+                logging.INFO,
+                __file__,
+                73,
+                "CPU-bound: KeyboardInterrupt",
+                (),
+                None,
+            )
+            log_handler.emit(record)
+            # Try to flush/force delivery
+            if hasattr(log_handler, "flush"):
+                log_handler.flush()
+
+    # Give time for the queue message to be delivered
+    # On Windows this requires substantial time due to process boundaries and Manager overhead
+    time.sleep(5.0)
+
+
+def log_info_keyboard_interrupt(logger: logging.Logger) -> None:
+    if sys.platform == "win32":  # pragma: no cover
+        return log_info_keyboard_interrupt_for_windows(logger)
+    return logger.info("CPU-bound: KeyboardInterrupt")
+
+
 # Reason: Executor function: submit() doesn't support kwargs.
 def cpu_bound(task_id: int | None = None, send_process_id: bool = False) -> str:  # noqa: FBT001,FBT002
     """Represents a CPU-bound task.
@@ -70,7 +109,8 @@ def cpu_bound(task_id: int | None = None, send_process_id: bool = False) -> str:
         logger.debug("%d %s", task_id, datetime.now(tz=timezone.utc))
         return ("" if task_id is None else f"task_id: {task_id}, ") + f"result: {result}"
     except KeyboardInterrupt:
-        logger.info("CPU-bound: KeyboardInterrupt")
+        # Log the KeyboardInterrupt - this MUST reach the queue for the test to pass
+        log_info_keyboard_interrupt(logger)
         raise
 
 

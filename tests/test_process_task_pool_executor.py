@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 from concurrent.futures.process import ProcessPoolExecutor
 from multiprocessing.context import Process
 from multiprocessing.managers import SyncManager
+from pathlib import Path
 from signal import SIGINT
 from signal import SIGTERM
 
@@ -220,7 +222,9 @@ class TestProcessTaskPoolExecutor:
         """
         # Reason: Windows requires a separate console for new process groups.
         command = f"start {sys.executable} tests\\testlibraries\\subprocess_wrapper_windows.py"
-        with Popen(command, shell=True) as popen:  # noqa: DUO116,RUF100,S602  # nosec B602
+        env = {k: str(v) for k, v in os.environ.items()}
+        env["PYTHONPATH"] = str(Path.cwd())
+        with Popen(command, shell=True, env=env) as popen:  # noqa: DUO116,RUF100,S602  # nosec B602
             assert LocalSocket.receive() == "Test succeed"
             assert popen.wait() == 0
 
@@ -234,11 +238,14 @@ class TestProcessTaskPoolExecutor:
           https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/a.py
           https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/run-a.py
         """
+        env = {k: str(v) for k, v in os.environ.items()}
+        env["PYTHONPATH"] = str(Path.cwd())
         # Reason: This only executes test code.
         with Popen(  # noqa: S603  # nosec B603
             f"{sys.executable} tests\\testlibraries\\keyboaard_interrupt_in_windows.py",
             # Reason: CREATE_NEW_PROCESS_GROUP is Windows-only.
             creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore[name-defined]  # pylint: disable=used-before-assignment
+            env=env,
         ) as popen:
             asyncio.run(asyncio.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE))
             LocalSocket.send(str(popen.pid))

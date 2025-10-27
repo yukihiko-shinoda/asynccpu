@@ -1,16 +1,18 @@
 """Test of keyboard Interrupt for Windows."""
 
 import asyncio
+import ctypes
 from logging import getLogger
-
-# Reason: only for Windows. pylint: disable=import-error
-import win32api  # type: ignore[import-untyped]
 
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_WINDOWS_NEW_WINDOW
 from tests.testlibraries.keyboard_interrupter import TestingKeyboardInterrupt
 from tests.testlibraries.local_socket import LocalSocket
 
-win32api.SetConsoleCtrlHandler(None, bAdd=False)
+# On Windows, processes created with CREATE_NEW_PROCESS_GROUP have Ctrl+C disabled by default.
+# Enable Ctrl+C handling using the Windows API directly via ctypes.
+# SetConsoleCtrlHandler(NULL, FALSE) enables the default Ctrl+C handling.
+# Reason: ctypes.windll is only available in Windows.
+ctypes.windll.kernel32.SetConsoleCtrlHandler(None, 0)  # type: ignore[attr-defined]
 
 
 async def wait_for_starting_process() -> int:
