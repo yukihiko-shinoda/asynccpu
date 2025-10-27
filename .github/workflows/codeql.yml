@@ -29,4 +29,4 @@ jobs:
       # only required for workflows in private repositories
       actions: read
       contents: read
-    uses: ./.github/workflows/reusable-codeql-analysis.yml@main
+    uses: yukihiko-shinoda/invoke-lint/.github/workflows/reusable-codeql-analysis.yml@main
