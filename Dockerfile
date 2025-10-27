@@ -1,10 +1,9 @@
-FROM python:3.9.6-slim-buster
-RUN python -m pip install --upgrade pip \
- && pip --no-cache-dir install pipenv
-ENV PIPENV_VENV_IN_PROJECT=1
-WORKDIR /workspace
-# COPY ./Pipfile ./Pipfile.lock /workspace/
-# RUN pipenv install --deploy --dev
+FROM futureys/claude-code-python-development:20250915024000
+COPY pyproject.toml /workspace/
+# - Using uv in Docker | uv
+#   https://docs.astral.sh/uv/guides/integration/docker/#caching
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync
 COPY . /workspace
-ENTRYPOINT [ "pipenv", "run" ]
-CMD ["pytest"]
+ENTRYPOINT [ "uv", "run" ]
+CMD ["invoke", "test.coverage"]

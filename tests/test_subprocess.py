@@ -1,29 +1,39 @@
 """Test for subprocess.py."""
+
+from __future__ import annotations
+
 import _thread
 import asyncio
 import os
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-import queue
 import sys
-from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from logging import LogRecord, getLogger
+from logging import getLogger
 from multiprocessing.managers import SyncManager
-from typing import Any, Callable, Dict, List, cast
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 
 import psutil
 import pytest
-from pytest_mock import MockerFixture
 
-from asynccpu.process_task import ProcessTask
-from asynccpu.subprocess import LoggingInitializer, Replier, cancel_coroutine, run
+from asynccpu.subprocess import LoggingInitializer
+from asynccpu.subprocess import Replier
+from asynccpu.subprocess import cancel_coroutine
+from asynccpu.subprocess import run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.assert_log import assert_log
-from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
+from tests.testlibraries.cpu_bound import expect_process_cpu_bound
+from tests.testlibraries.cpu_bound import process_cpu_bound
 from tests.testlibraries.process_family import ProcessFamily
+
+if TYPE_CHECKING:
+    import queue
+    from asyncio.futures import Future
+    from logging import LogRecord
+
+    from pytest_mock import MockerFixture
+
+    from asynccpu.process_task import ProcessTask
 
 
 async def keyboard_interrupt() -> None:
@@ -35,24 +45,26 @@ class TestRun:
     """Test for run()."""
 
     @staticmethod
-    def test_run(manager_queue: "queue.Queue[LogRecord]", replier: Replier) -> None:
+    def test_run(manager_queue: queue.Queue[LogRecord], replier: Replier) -> None:
         """Function: run should run coroutine function from beggining to end."""
         expect = expect_process_cpu_bound(1)
         logging_initializer = LoggingInitializer(manager_queue)
         actual = run(replier, logging_initializer, process_cpu_bound, 1)
         assert actual == expect
-        assert_log(manager_queue, True, True)
+        assert_log(manager_queue, expect_info=True, expect_debug=True)
 
     @staticmethod
     def test_run_configure_log(
-        manager_queue: "queue.Queue[LogRecord]", configurer_log_level: Callable[[], None], replier: Replier
+        manager_queue: queue.Queue[LogRecord],
+        configurer_log_level: Callable[[], None],
+        replier: Replier,
     ) -> None:
         """Function: run should be able to configure log settings."""
         expect = expect_process_cpu_bound(1)
         logging_initializer = LoggingInitializer(manager_queue, configurer_log_level)
         actual = run(replier, logging_initializer, process_cpu_bound, 1)
         assert actual == expect
-        assert_log(manager_queue, True, False)
+        assert_log(manager_queue, expect_info=True, expect_debug=False)
 
     @staticmethod
     def test_run_keyboard_interrupt(sync_manager: SyncManager) -> None:
@@ -61,7 +73,7 @@ class TestRun:
         replier = Replier(sync_manager.dict(), queue_process_id)
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor:
-            future = cast("Future[Any]", loop.run_in_executor(executor, run, replier, None, keyboard_interrupt))
+            future = loop.run_in_executor(executor, run, replier, None, keyboard_interrupt)
             queue_process_id.get()
         assert not future.get_loop().is_running()
         assert not future.done()
@@ -76,7 +88,7 @@ class TestRun:
 
     @classmethod
     def execute_test_run(cls, send_signal: Callable[[psutil.Process], None]) -> None:
-        """Executes test run"""
+        """Executes test run."""
         expect = expect_process_cpu_bound(1)
         future = cls.run_in_process_executor(1)
         cls.execute_send_signal(send_signal)
@@ -90,26 +102,22 @@ class TestRun:
     @staticmethod
     def execute_send_signal(send_signal: Callable[[psutil.Process], None]) -> None:
         pytest_process = psutil.Process()
-        children: List[psutil.Process] = pytest_process.children()
+        children: list[psutil.Process] = pytest_process.children()
         for process in children:
             send_signal(process)
 
     @staticmethod
-    def run_in_process_executor(task_id: Any) -> "Future[Any]":
+    def run_in_process_executor(task_id: int) -> Future[Any]:
         """Sends signal for test."""
         loop = asyncio.new_event_loop()
-        with ProcessPoolExecutor() as executor:
-            with SyncManager() as manager:
-                sync_mangaer = cast(SyncManager, manager)
-                dictionary_process: Dict[int, ProcessTask] = sync_mangaer.dict()
-                queue_process_id: "queue.Queue[ProcessTask]" = sync_mangaer.Queue()
-                replier = Replier(dictionary_process, queue_process_id)
-                future = cast(
-                    "Future[Any]", loop.run_in_executor(executor, run, replier, None, process_cpu_bound, task_id),
-                )
-                process: ProcessTask = queue_process_id.get()
-                assert process.id in dictionary_process
-                return future
+        with ProcessPoolExecutor() as executor, SyncManager() as manager:
+            dictionary_process = manager.dict()
+            queue_process_id = manager.Queue()
+            replier = Replier(dictionary_process, queue_process_id)
+            future = loop.run_in_executor(executor, run, replier, None, process_cpu_bound, task_id)
+            process: ProcessTask = queue_process_id.get()
+            assert process.id in dictionary_process
+            return future
 
     @staticmethod
     def terminate(process: psutil.Process) -> None:
@@ -125,8 +133,7 @@ class TestCancelCoroutine:
 
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     def test_unified(self) -> None:
-        """
-        Function terminate_process() should terminate all child processes.
+        """Function terminate_process() should terminate all child processes.
 
         Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it.
         Function process.kill() stops pytest process.

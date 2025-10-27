@@ -1,51 +1,62 @@
 """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+
+from __future__ import annotations
+
 import asyncio
 import os
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-import queue
 import time
-from asyncio.futures import Future
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from logging import DEBUG, LogRecord, getLogger
+from logging import DEBUG
+from logging import getLogger
 from logging.handlers import QueueHandler
-from typing import Any, Callable, Generator, List, Optional
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Generator
 
 import pytest
 
-# Reason: Following export method in __init__.py from Effective Python 2nd Edition item 85
-from asynccpu import ProcessTaskPoolExecutor  # type: ignore
+from asynccpu import ProcessTaskPoolExecutor
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries import SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C
 from tests.testlibraries.cpu_bound import process_cpu_bound
 from tests.testlibraries.future_waiter import FutureWaiter
 from tests.testlibraries.local_socket import LocalSocket
 
+if TYPE_CHECKING:
+    import queue
+    from asyncio.futures import Future
+    from logging import LogRecord
 
-async def create_example_process_tasks(executor: ProcessTaskPoolExecutor) -> List["Future[str]"]:
+
+async def create_example_process_tasks(executor: ProcessTaskPoolExecutor) -> list[Future[str]]:
     """Creates example process tasks."""
-    futures = []
+    futures: list[Future[str]] = []
     for task_id in range(10):
         futures.append(executor.create_process_task(process_cpu_bound, task_id))
         # In case of new window in Windows, this method seems to occupy CPU resource in case when without sleep.
         # Otherwise, this method never releases CPU resource until all of CPU bound process finish.
-        print("Sleep")
+        # Reason: This process may runs as asyncio task that cannot log by logger.
+        print("Sleep")  # noqa: T201
         await asyncio.sleep(0.001)
     return futures
 
 
 async def example_use_case(
-    queue_logger: Optional["queue.Queue[LogRecord]"] = None, configurer: Optional[Callable[[], Any]] = None
-) -> List[str]:
+    queue_logger: queue.Queue[LogRecord] | None = None,
+    configurer: Callable[[], Any] | None = None,
+) -> list[str]:
     """The example use case of ProcessTaskPoolExecutor for E2E testing."""
     with ProcessTaskPoolExecutor(
-        max_workers=3, cancel_tasks_when_shutdown=True, queue=queue_logger, configurer=configurer
+        max_workers=3,
+        cancel_tasks_when_shutdown=True,
+        queue=queue_logger,
+        configurer=configurer,
     ) as executor:
         futures = await create_example_process_tasks(executor)
         return await asyncio.gather(*futures)
 
 
-def example_use_case_method(queue_logger: Optional["queue.Queue[LogRecord]"] = None) -> Generator[str, None, None]:
+def example_use_case_method(queue_logger: queue.Queue[LogRecord] | None = None) -> Generator[str, None, None]:
     with ProcessTaskPoolExecutor(max_workers=3, cancel_tasks_when_shutdown=True, queue=queue_logger) as executor:
         futures = [executor.create_process_task(process_cpu_bound, x) for x in range(10)]
         FutureWaiter.wait(futures)
@@ -53,7 +64,8 @@ def example_use_case_method(queue_logger: Optional["queue.Queue[LogRecord]"] = N
 
 
 def example_use_case_cancel_repost_process_id(
-    queue_sub: Optional["queue.Queue[LogRecord]"] = None, queue_main: Optional["queue.Queue[LogRecord]"] = None
+    queue_sub: queue.Queue[LogRecord] | None = None,
+    queue_main: queue.Queue[LogRecord] | None = None,
 ) -> None:
     """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
     time.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
@@ -64,5 +76,7 @@ def example_use_case_cancel_repost_process_id(
         logger.setLevel(DEBUG)
     results = example_use_case_method(queue_sub)
     results_string = repr(results)
+    # Without sleep, it's so early that test function can't start waiting for sending after simulate Ctrl-C.
+    time.sleep(SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C)
     LocalSocket.send(results_string)
     pytest.fail(results_string)

@@ -1,16 +1,15 @@
 """Test for process_task.py."""
+
+from __future__ import annotations
+
 import asyncio
 import sys
 from asyncio.events import get_event_loop
 from asyncio.exceptions import CancelledError
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
 from signal import SIGTERM
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from typing import Any, Type, cast
+from typing import TYPE_CHECKING
+from typing import Any
 
 import pytest
 
@@ -19,6 +18,9 @@ from tests.testlibraries import SECOND_SLEEP_FOR_TEST_SHORT
 from tests.testlibraries.cpu_bound import cpu_bound
 from tests.testlibraries.exceptions import Terminated
 from tests.testlibraries.local_socket import LocalSocket
+
+if TYPE_CHECKING:
+    from asyncio.futures import Future
 
 
 class TestProcessTask:
@@ -29,8 +31,8 @@ class TestProcessTask:
         process1 = ProcessTask(1)
         process2 = ProcessTask(1)
         list_process = [process1]
-        assert list_process[0].__hash__() == process1.__hash__()
-        assert list_process[0].__hash__() == process2.__hash__()
+        assert hash(list_process[0]) == hash(process1)
+        assert hash(list_process[0]) == hash(process2)
 
     @staticmethod
     def test_hashable() -> None:
@@ -50,7 +52,7 @@ class TestProcessTask:
         """Process task should be able to terminate by method send_signal()."""
         with ProcessPoolExecutor() as executor:
             future = self.create_future(executor)
-            await self.execute_test(future, SIGTERM, False, Terminated)
+            await self.execute_test(future, SIGTERM, expect=False, expect_type_error=Terminated)
         assert future.done()
 
     @pytest.mark.asyncio
@@ -59,22 +61,27 @@ class TestProcessTask:
         with ProcessPoolExecutor() as executor:
             future = self.create_future(executor)
             assert future.cancel()
-            await self.execute_test(future, SIGTERM, True, CancelledError)
+            await self.execute_test(future, SIGTERM, expect=True, expect_type_error=CancelledError)
         assert future.done()
 
     @staticmethod
     async def execute_test(
-        future: "Future[Any]", signal_number: int, expect: bool, expect_type_error: Type[BaseException]
+        future: Future[Any],
+        signal_number: int,
+        *,
+        expect: bool,
+        expect_type_error: type[BaseException],
     ) -> None:
         """Executes test."""
         process_task = ProcessTask(int(LocalSocket.receive()))
         assert future.done() == expect
         assert future.cancelled() == expect
         await asyncio.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
+        process_task.send_signal(signal_number)
         with pytest.raises(expect_type_error):
-            process_task.send_signal(signal_number)
             await future
 
     @staticmethod
-    def create_future(executor: ProcessPoolExecutor) -> "Future[Any]":
-        return cast("Future[Any]", get_event_loop().run_in_executor(executor, cpu_bound, 1, True))
+    def create_future(executor: ProcessPoolExecutor) -> Future[Any]:
+        # Reason: Function doesn't support kwargs.
+        return get_event_loop().run_in_executor(executor, cpu_bound, 1, True)  # noqa: FBT003

@@ -1,24 +1,30 @@
 """Test of keyboard Interrupt for Windows."""
-# Reason: only for Windows. pylint: disable=import-error
-import asyncio
 
-import win32api  # type: ignore
+import asyncio
+import ctypes
+from logging import getLogger
 
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_WINDOWS_NEW_WINDOW
-from tests.testlibraries.keyboard_interrupter import KeyboardInterrupter
+from tests.testlibraries.keyboard_interrupter import TestingKeyboardInterrupt
 from tests.testlibraries.local_socket import LocalSocket
 
-win32api.SetConsoleCtrlHandler(None, False)
+# On Windows, processes created with CREATE_NEW_PROCESS_GROUP have Ctrl+C disabled by default.
+# Enable Ctrl+C handling using the Windows API directly via ctypes.
+# SetConsoleCtrlHandler(NULL, FALSE) enables the default Ctrl+C handling.
+# Reason: ctypes.windll is only available in Windows.
+ctypes.windll.kernel32.SetConsoleCtrlHandler(None, 0)  # type: ignore[attr-defined]
 
 
-async def get_process_id() -> int:
-    print("Await socket")
+async def wait_for_starting_process() -> int:
+    """Awaits starting process and returns its process id."""
+    logger = getLogger(__name__)
+    logger.debug("Await socket")
     process_id = int(LocalSocket.receive())
-    print("Await sleep")
+    logger.debug("Await sleep")
     await asyncio.sleep(SECOND_SLEEP_FOR_TEST_WINDOWS_NEW_WINDOW)
-    print("Kill group lead process")
+    logger.debug("Kill group lead process")
     return process_id
 
 
 if __name__ == "__main__":
-    KeyboardInterrupter(get_process_id()).test_keyboard_interrupt()
+    TestingKeyboardInterrupt(wait_for_starting_process()).execute_test_and_report_result_to_pytest_process()
