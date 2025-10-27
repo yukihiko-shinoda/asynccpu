@@ -116,6 +116,9 @@ filename = "asynccpu/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 
+[tool.coverage.paths]
+source = ["asynccpu/"]
+
 [tool.coverage.report]
 exclude_also = [
     # Assume `if TYPE_CHECKING: ... else: ...` block is covered · Issue #831 · nedbat/coveragepy
