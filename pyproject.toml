@@ -116,9 +116,6 @@ filename = "asynccpu/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 
-[tool.coverage.paths]
-source = ["asynccpu/"]
-
 [tool.coverage.report]
 exclude_also = [
     # Assume `if TYPE_CHECKING: ... else: ...` block is covered · Issue #831 · nedbat/coveragepy
@@ -135,7 +132,12 @@ exclude_also = [
 concurrency = ["multiprocessing"]
 # To attempts to save coverage data even when a process is terminated by a SIGTERM signal
 sigterm = true
+# To remap paths when coverage combines data files:
+# - Combining data files: coverage combine — Coverage.py documentation
+#   https://coverage.readthedocs.io/en/latest/commands/cmd_combine.html#re-mapping-paths
 source = ["asynccpu"]
+relative_files = true
+debug = ["pathmap"]
 
 [tool.docformatter]
 recursive = true
