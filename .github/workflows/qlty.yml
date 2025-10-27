@@ -8,3 +8,5 @@ jobs:
       contents: read
       id-token: write
     uses: yukihiko-shinoda/invoke-lint/.github/workflows/reusable-qlty.yml@main
+    with:
+      add-prefix: 'asynccpu/'
