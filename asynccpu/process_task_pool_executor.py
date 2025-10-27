@@ -76,7 +76,8 @@ class ProcessTaskFactory:
         """Creates ProcessTask."""
         try:
             queue_process_id = self.sync_manager.Queue()
-        except InterruptedError as error:
+        # Reason: Only on Windows.
+        except InterruptedError as error:  # pragma: no cover
             # On Windows, CTRL_C_EVENT raises InterruptedError during blocking operations
             # Convert to KeyboardInterrupt for consistent handling across platforms
             self.logger.debug("InterruptedError during Queue creation: %s", error)
@@ -86,7 +87,8 @@ class ProcessTaskFactory:
         task = self.loop.run_in_executor(self.process_pool_executor, partial_func, *args)
         try:
             queue_process_id.get()
-        except InterruptedError as error:
+        # Reason: Only on Windows.
+        except InterruptedError as error:  # pragma: no cover
             # On Windows, CTRL_C_EVENT raises InterruptedError during blocking operations
             # Convert to KeyboardInterrupt for consistent handling across platforms
             self.logger.debug("InterruptedError during queue get: %s", error)

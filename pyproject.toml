@@ -129,6 +129,9 @@ exclude_also = [
 ]
 
 [tool.coverage.run]
+concurrency = ["multiprocessing"]
+# To attempts to save coverage data even when a process is terminated by a SIGTERM signal
+sigterm = true
 source = ["asynccpu"]
 
 [tool.docformatter]
