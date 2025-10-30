@@ -6,9 +6,10 @@ import psutil
 
 
 class ProcessTask:
-    """
-    None of following specification is not required now.
-    These specification will be removed if we got prospect that it's not required in the future too.
+    """Represents a task running in a separate process.
+
+    None of following specification is not required now. These specification will be removed if we got prospect that
+    it's not required in the future too.
 
     This class is designed as:
     - Picklable to set SyncManager.list()

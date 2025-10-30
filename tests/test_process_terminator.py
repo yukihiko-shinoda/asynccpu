@@ -1,4 +1,5 @@
 """Test for process_terminator.py."""
+
 from typing import Callable
 
 from asynccpu.process_terminator import terminate_descendant_processes

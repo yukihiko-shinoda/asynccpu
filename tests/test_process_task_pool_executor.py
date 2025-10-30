@@ -1,37 +1,50 @@
 """Tests for `asynccpu` package."""
-import asyncio
 
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-import queue
+from __future__ import annotations
+
+import asyncio
+import os
 import sys
 import time
-from asyncio.futures import Future
 from concurrent.futures.process import ProcessPoolExecutor
-
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-from logging import LogRecord
 from multiprocessing.context import Process
 from multiprocessing.managers import SyncManager
-from signal import SIGINT, SIGTERM
-from subprocess import Popen
-from typing import Any, Callable, List, cast
+from pathlib import Path
+from signal import SIGINT
+from signal import SIGTERM
+
+# Reason: This is requirement for Windows test.
+from subprocess import Popen  # nosec B404
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 
 import psutil
 import pytest
 
-# Reason: Following export method in __init__.py from Effective Python 2nd Edition item 85
-from asynccpu import ProcessTaskPoolExecutor  # type: ignore
+from asynccpu import ProcessTaskPoolExecutor
 from asynccpu.process_task_pool_executor import ProcessTaskFactory
-from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE, SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
+from tests.testlibraries import SECOND_SLEEP_FOR_TEST_SHORT
+from tests.testlibraries import SECOND_SLEEP_FOR_WAITING_FOR_INITIALIZING_CHILD_PROCESS_OF_COVERAGE
 from tests.testlibraries.assert_log import assert_log
-from tests.testlibraries.cpu_bound import expect_process_cpu_bound, process_cpu_bound
-from tests.testlibraries.example_use_case import example_use_case, example_use_case_cancel_repost_process_id
+from tests.testlibraries.cpu_bound import expect_process_cpu_bound
+from tests.testlibraries.cpu_bound import process_cpu_bound
+from tests.testlibraries.example_use_case import example_use_case
+from tests.testlibraries.example_use_case import example_use_case_cancel_repost_process_id
 from tests.testlibraries.exceptions import Terminated
 from tests.testlibraries.local_socket import LocalSocket
 
+if TYPE_CHECKING:
+    import queue
+    from asyncio.futures import Future
+    from logging import LogRecord
+
 if sys.platform == "win32":
-    # Reason pylint issue. When put into group, wrong-import-position occur. pylint: disable=ungrouped-imports
-    from subprocess import CREATE_NEW_PROCESS_GROUP
+    # Reason:
+    #   B404: This is requirement for Windows test.
+    #   pylint issue. When put into group, wrong-import-position occur. pylint: disable=ungrouped-imports
+    from subprocess import CREATE_NEW_PROCESS_GROUP  # nosec B404
 
 
 class TestProcessTaskFactory:
@@ -45,20 +58,19 @@ class TestProcessTaskFactory:
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     async def test(self) -> None:
         """Method: cancel_if_not_cancelled() should cancel task."""
-        with SyncManager() as sync_manager:
-            with ProcessPoolExecutor() as executor:
-                task = await self.execute_test(ProcessTaskFactory(executor, cast(SyncManager, sync_manager)))
+        with SyncManager() as sync_manager, ProcessPoolExecutor() as executor:
+            task = await self.execute_test(ProcessTaskFactory(executor, sync_manager))
         assert task.done()
 
     @staticmethod
-    async def execute_test(process_task_factory: ProcessTaskFactory) -> "Future[Any]":
+    async def execute_test(process_task_factory: ProcessTaskFactory) -> Future[Any]:
         """Executes test."""
         task = process_task_factory.create(process_cpu_bound)
         assert not task.done()
         assert not task.cancelled()
+        await asyncio.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
+        process_task_factory.send_signal(SIGTERM)
         with pytest.raises(Terminated):
-            await asyncio.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
-            process_task_factory.send_signal(SIGTERM)
             await task
         return task
 
@@ -72,8 +84,9 @@ class TestProcessTaskPoolExecutor:
             executor.shutdown()
 
     @staticmethod
-    def test_smoke(manager_queue: "queue.Queue[LogRecord]") -> None:
-        """
+    def test_smoke(manager_queue: queue.Queue[LogRecord]) -> None:
+        """Tests basic functionality.
+
         - Results should be as same as expected.
         - Logging configuration should be as same as default.
         """
@@ -90,11 +103,12 @@ class TestProcessTaskPoolExecutor:
         assert actuals is not None
         for expect in expects:
             assert expect in actuals
-        assert_log(manager_queue, expect_info, expect_debug)
+        assert_log(manager_queue, expect_info=expect_info, expect_debug=expect_debug)
 
     @staticmethod
     def test_smoke_configure_log(
-        manager_queue: "queue.Queue[LogRecord]", configurer_log_level: Callable[[], None]
+        manager_queue: queue.Queue[LogRecord],
+        configurer_log_level: Callable[[], None],
     ) -> None:
         """ProcessTaskPoolExecutor should be able to configure logging settings."""
         expects = [expect_process_cpu_bound(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
@@ -102,7 +116,7 @@ class TestProcessTaskPoolExecutor:
         assert actuals is not None
         for expect in expects:
             assert expect in actuals
-        assert_log(manager_queue, True, False)
+        assert_log(manager_queue, expect_info=True, expect_debug=False)
 
     # Since Python can't trap signal.SIGTERM in Windows.
     # see:
@@ -112,16 +126,19 @@ class TestProcessTaskPoolExecutor:
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     @pytest.mark.asyncio
     async def test_future() -> None:
-        """
-        Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it.
-        Function process.kill() stops pytest process.
+        """Tests future cancellation.
+
+        Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it. Function
+        process.kill() stops pytest process.
+
         see:
           - https://psutil.readthedocs.io/en/latest/#psutil.Process.terminate
           - https://psutil.readthedocs.io/en/latest/#psutil.Process.kill
           - https://docs.python.org/ja/3/library/signal.html#signal.SIGKILL
         """
         with ProcessTaskPoolExecutor(cancel_tasks_when_shutdown=True) as executor:
-            future = executor.create_process_task(process_cpu_bound, 1, True)
+            # Reason: Executor function: run_in_executor() doesn't support kwargs.
+            future = executor.create_process_task(process_cpu_bound, 1, True)  # noqa: FBT003
             pid = LocalSocket.receive()
             process = psutil.Process(int(pid))
             process.terminate()
@@ -136,10 +153,12 @@ class TestProcessTaskPoolExecutor:
     #       https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
-    def test_terminate(manager_queue: "queue.Queue[LogRecord]") -> None:
-        """
-        Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it.
-        Function process.kill() stops pytest process.
+    def test_terminate(manager_queue: queue.Queue[LogRecord]) -> None:
+        """Tests process termination.
+
+        Can't test in case process.kill() since it sends signal.SIGKILL and Python can't trap it. Function
+        process.kill() stops pytest process.
+
         see:
           - https://psutil.readthedocs.io/en/latest/#psutil.Process.terminate
           - https://psutil.readthedocs.io/en/latest/#psutil.Process.kill
@@ -152,8 +171,7 @@ class TestProcessTaskPoolExecutor:
         psutil_process = psutil.Process(process.pid)
         psutil_process.terminate()
         psutil_process.wait()
-        # Reason: Requires to enhance types-psutil
-        assert not psutil_process.is_running()  # type: ignore
+        assert not psutil_process.is_running()
         assert_graceful_shutdown(manager_queue)
 
     # Since Python can't trap signal.SIGTERM in Windows.
@@ -162,7 +180,7 @@ class TestProcessTaskPoolExecutor:
     #       https://bugs.python.org/issue26350
     @staticmethod
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
-    def test_sigterm(manager_queue: "queue.Queue[LogRecord]") -> None:
+    def test_sigterm(manager_queue: queue.Queue[LogRecord]) -> None:
         """ProcessTaskPoolExecutor should raise keyboard interrupt."""
         process = Process(target=example_use_case_cancel_repost_process_id, kwargs={"queue_main": manager_queue})
         process.start()
@@ -171,22 +189,22 @@ class TestProcessTaskPoolExecutor:
         psutil_process = psutil.Process(process.pid)
         psutil_process.send_signal(SIGTERM)
         psutil_process.wait()
-        # Reason: Requires to enhance types-psutil
-        assert not psutil_process.is_running()  # type: ignore
+        assert not psutil_process.is_running()
         assert_graceful_shutdown(manager_queue)
 
     # Since only SIGTERM, CTRL_C_EVENT and CTRL_BREAK_EVENT signals are supported on Windows.
     # see: https://github.com/giampaolo/psutil/blob/e80cabe5206fd7ef14fd6a47e2571f660f95babf/psutil/_pswindows.py#L875
     @pytest.mark.skipif(sys.platform == "win32", reason="test for Linux only")
     def test_keyboard_interrupt_on_linux(self) -> None:
-        """
+        """Tests keyboard interrupt on Linux.
+
         - Keyboard interrupt should reach to all descendant processes.
         - Keyboard interrupt should shutdown ProcessTaskPoolExecutor gracefully.
         """
         process = Process(target=self.report_raises_keyboard_interrupt)
         process.start()
         LocalSocket.receive()
-        time.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
+        time.sleep(SECOND_SLEEP_FOR_WAITING_FOR_INITIALIZING_CHILD_PROCESS_OF_COVERAGE)
         self.simulate_ctrl_c_in_posix(process)
         assert LocalSocket.receive() == "Test succeed"
         process.join()
@@ -196,29 +214,38 @@ class TestProcessTaskPoolExecutor:
     @staticmethod
     @pytest.mark.skipif(sys.platform != "win32", reason="test for Windows only")
     def test_keyboard_interrupt_ctrl_c_new_window() -> None:
-        """
+        """Tests keyboard interrupt in a new window.
+
         see:
-          - Answer: Sending ^C to Python subprocess objects on Windows
-            https://stackoverflow.com/a/7980368/12721873
+        - Answer: Sending ^C to Python subprocess objects on Windows
+          https://stackoverflow.com/a/7980368/12721873
         """
-        with Popen(f"start {sys.executable} tests\\testlibraries\\subprocess_wrapper_windows.py", shell=True) as popen:
+        # Reason: Windows requires a separate console for new process groups.
+        command = f"start {sys.executable} tests\\testlibraries\\subprocess_wrapper_windows.py"
+        env = {k: str(v) for k, v in os.environ.items()}
+        env["PYTHONPATH"] = str(Path.cwd())
+        with Popen(command, shell=True, env=env) as popen:  # noqa: DUO116,RUF100,S602  # nosec B602
             assert LocalSocket.receive() == "Test succeed"
             assert popen.wait() == 0
 
     @staticmethod
     @pytest.mark.skipif(sys.platform != "win32", reason="test for Windows only")
     def test_keyboard_interrupt_ctrl_c_new_process_group() -> None:
+        """see:
+
+        - On Windows, what is the python launcher 'py' doing that lets control-C cross between process groups?
+          https://stackoverflow.com/q/42180468/12721873
+          https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/a.py
+          https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/run-a.py
         """
-        see:
-          - On Windows, what is the python launcher 'py' doing that lets control-C cross between process groups?
-            https://stackoverflow.com/q/42180468/12721873
-            https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/a.py
-            https://github.com/njsmith/appveyor-ctrl-c-test/blob/34e13fab9be56d59c3eba566e26d80505c309438/run-a.py
-        """
-        with Popen(
+        env = {k: str(v) for k, v in os.environ.items()}
+        env["PYTHONPATH"] = str(Path.cwd())
+        # Reason: This only executes test code.
+        with Popen(  # noqa: S603  # nosec B603
             f"{sys.executable} tests\\testlibraries\\keyboaard_interrupt_in_windows.py",
-            # Reason: Definition of following constant is Windows only
-            creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore
+            # Reason: CREATE_NEW_PROCESS_GROUP is Windows-only.
+            creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore[name-defined]  # pylint: disable=used-before-assignment
+            env=env,
         ) as popen:
             asyncio.run(asyncio.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE))
             LocalSocket.send(str(popen.pid))
@@ -233,27 +260,27 @@ class TestProcessTaskPoolExecutor:
 
     @staticmethod
     def simulate_ctrl_c_in_posix(process: Process) -> None:
-        """
-        see:
-          - python - Handling keyboard interrupt when using subproccess - Stack Overflow
-            https://stackoverflow.com/a/23839524/12721873
-          - Answer: c++ - Child process receives parent's SIGINT - Stack Overflow
-            https://stackoverflow.com/a/6804155/12721873
+        """see:
+
+        - python - Handling keyboard interrupt when using subproccess - Stack Overflow
+          https://stackoverflow.com/a/23839524/12721873
+        - Answer: c++ - Child process receives parent's SIGINT - Stack Overflow
+          https://stackoverflow.com/a/6804155/12721873
         """
         psutil_process = psutil.Process(process.pid)
-        child_processes: List[psutil.Process] = psutil_process.children(recursive=True)
+        child_processes: list[psutil.Process] = psutil_process.children(recursive=True)
         child_processes.append(psutil_process)
         for child_process in child_processes:
             child_process.send_signal(SIGINT)
 
 
-def assert_graceful_shutdown(queue_logger: "queue.Queue[LogRecord]") -> None:
+def assert_graceful_shutdown(queue_logger: queue.Queue[LogRecord]) -> None:
     """Asserts graceful shutdown."""
     log_checker = LogChecker()
     while not queue_logger.empty():
         log_checker.check(queue_logger.get().message)
     assert log_checker.finish_lock_and_cancel_if_not_cancelled
-    assert log_checker.finish_sigterm_hander
+    assert log_checker.finish_sigterm_handler
 
 
 class LogChecker:
@@ -261,10 +288,10 @@ class LogChecker:
 
     def __init__(self) -> None:
         self.finish_lock_and_cancel_if_not_cancelled = False
-        self.finish_sigterm_hander = False
+        self.finish_sigterm_handler = False
 
     def check(self, message: str) -> None:
         if message == "Lock and send signal: Finish":
             self.finish_lock_and_cancel_if_not_cancelled = True
         elif message == "SIGTERM handler ProcessTaskPoolExecutor: Finish":
-            self.finish_sigterm_hander = True
+            self.finish_sigterm_handler = True

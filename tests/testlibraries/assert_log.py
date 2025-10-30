@@ -1,10 +1,17 @@
 """Assert log."""
-# Reason: To support Python 3.8 or less pylint: disable=unused-import
-import queue
-from logging import DEBUG, INFO, LogRecord
+
+from __future__ import annotations
+
+from logging import DEBUG
+from logging import INFO
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import queue
+    from logging import LogRecord
 
 
-def assert_log(queue_logger: "queue.Queue[LogRecord]", expect_info: bool, expect_debug: bool) -> None:
+def assert_log(queue_logger: queue.Queue[LogRecord], *, expect_info: bool, expect_debug: bool) -> None:
     record_checker = RecordChecker()
     while not queue_logger.empty():
         record_checker.categorize(queue_logger.get())
