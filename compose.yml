@@ -3,3 +3,11 @@ services:
     build:
       context: .
     image: futureys/asynccpu:development
+    volumes:
+      - .:/workspace:cached
+      - /workspace/.venv
+      # - Using uv in Docker | uv
+      #   https://docs.astral.sh/uv/guides/integration/docker/#caching
+      - uv-cache:/root/.cache/uv
+volumes:
+  uv-cache:
