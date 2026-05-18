@@ -64,7 +64,17 @@ class ProcessTaskFactory:
         # E        <asynccpu.subprocess.ProcessForWeakSet object at 0x7fc75e20f850>>
         self.dictionary_process: DictProxy[int, ProcessTask] = sync_manager.dict()
         self.logging_initializer = logging_initializer
-        self.loop = asyncio.get_event_loop()
+        # Reason: Python 3.14 changed the default multiprocessing start method to forkserver on
+        # Linux. Unlike fork, forkserver spawns a clean process with no running event loop, so
+        # asyncio.get_running_loop() raises RuntimeError outside of asyncio.run(). Fall back to
+        # creating an explicit loop; track ownership so close_loop() can close it on shutdown.
+        try:
+            self.loop = asyncio.get_running_loop()
+            self._owns_loop = False
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+            self._owns_loop = True
         self.logger = getLogger(__name__)
 
     def create(
@@ -96,14 +106,14 @@ class ProcessTaskFactory:
             cancel = task.cancel()
             self.logger.debug("Cancel succeed?: %s", cancel)
             raise KeyboardInterrupt from error
-        except BaseException as error:
+        # Reason: This conditional raise is just in case.
+        except BaseException as error:  # pragma: no cover
             self.logger.debug("%s", error)
             self.logger.debug(task)
             cancelled = task.cancelled()
             self.logger.debug("Cancelled?: %s", cancelled)
             if cancelled:
-                # Reason: This conditional raise is just in case.
-                raise  # pragma: no cover
+                raise
             cancel = task.cancel()
             self.logger.debug("Cancel succeed?: %s", cancel)
             raise
@@ -122,6 +132,10 @@ class ProcessTaskFactory:
         if isinstance(items_dictionary_process, ProcessTask):
             return [items_dictionary_process]
         return items_dictionary_process
+
+    def close_loop(self) -> None:
+        if self._owns_loop and not self.loop.is_closed():
+            self.loop.close()
 
 
 class ProcessTaskManager:
@@ -259,8 +273,8 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
     ) -> None:
         """Shutdown ProcessTaskPoolExecutor.
 
-        Although ProcessPoolExecutor won't cancel any futures that are completed or running even if *cancel_futures*
-        is `True`, This class attempt to cancel also them when *cancel_futures* is `True`.
+        Although ProcessPoolExecutor won't cancel any futures that are completed or running even if *cancel_futures* is
+        `True`, This class attempt to cancel also them when *cancel_futures* is `True`.
         """
         if cancel_futures is None:
             cancel_futures = self.cancel_tasks_when_shutdown
@@ -278,6 +292,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         self.call_super_class_shutdown(wait=wait, cancel_futures=cancel_futures)
         self.logger.debug("Shutdown ProcessTaskPoolExecutor: Shutdown sync manager")
         self.sync_manager.shutdown()
+        self.process_task_manager.process_task_factory.close_loop()
 
     def call_super_class_shutdown(self, *, wait: bool, cancel_futures: bool) -> None:
         """Calls shutdown() of super class."""

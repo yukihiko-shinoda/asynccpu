@@ -62,6 +62,10 @@ This project uses `uv` as the package manager and `invoke` for task automation.
    - `ProcessTaskFactory`: Creates and tracks individual process tasks
    - `ProcessTaskManager`: Thread-safe task creation with emergency timeout handling
 
+5. **Process Termination** ([asynccpu/process_terminator.py](asynccpu/process_terminator.py))
+   - `ProcessTerminator`: Strategy-pattern wrapper choosing between `kill()` and `terminate()` based on `force` flag
+   - `terminate_descendant_processes()`: Recursively terminates child processes of a given PID via `psutil`
+
 ### Key Design Patterns
 
 **Pickling Constraint**: All objects passed to subprocesses must be picklable. This is why:

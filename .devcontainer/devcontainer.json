@@ -66,8 +66,7 @@
 							"cmd": "uv run docformatter --in-place ${file}"
 						}
 					]
-				},
-				"python.analysis.typeCheckingMode": "strict"
+				}
 			}
 		}
 	}

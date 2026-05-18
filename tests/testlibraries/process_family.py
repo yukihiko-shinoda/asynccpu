@@ -45,6 +45,11 @@ class ProcessFamily:
         """Checks that decendant processes are terminated."""
         self.child_process.join()
         _, alive = psutil.wait_procs(self.grandchildren, timeout=1)
+        # Reason: Python 3.14 changed the default multiprocessing start method to forkserver on
+        # Linux. Grandchildren of forkserver processes have the forkserver daemon as their parent,
+        # so psutil.wait_procs() cannot reap them via waitpid() — they linger as zombies in alive.
+        # psutil.is_running() returns True for zombies, so status() must be checked explicitly.
+        alive = [p for p in alive if self._is_actively_running(p)]
         assert not alive
         assert not self.child_process.is_alive()
         assert self.child_process.exitcode == 0
@@ -52,7 +57,15 @@ class ProcessFamily:
 
     def _assert_that_descendant_processes_are_terminated(self) -> None:
         for grandchild in self.grandchildren:
-            assert not grandchild.is_running()
+            assert not self._is_actively_running(grandchild)
+
+    @staticmethod
+    def _is_actively_running(process: psutil.Process) -> bool:
+        """Returns True only if the process is running (not a zombie and not gone)."""
+        try:
+            return process.status() not in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD)
+        except psutil.NoSuchProcess:
+            return False
 
     @staticmethod
     def child(event: synchronize.Event, after_task: Callable[..., Any] | None = None) -> None:

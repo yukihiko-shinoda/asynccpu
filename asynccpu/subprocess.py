@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from logging import Logger
 from logging import getLogger
 from logging import handlers
@@ -88,10 +89,39 @@ class LoggingInitializer:
 
     @staticmethod
     def set_queue_handler(queue_logger: queue.Queue[LogRecord]) -> Logger:
+        """Sets QueueHandler for subprocess."""
         logger = getLogger()
         handler = handlers.QueueHandler(queue_logger)
         logger.addHandler(handler)
+        # Reason: Python 3.14 changed the default multiprocessing start method to forkserver on
+        # Linux. forkserver processes start clean and do not inherit the parent's log level;
+        # the default is WARNING, which silences INFO/DEBUG records before they reach the handler.
+        # On Windows (spawn), preserve the default WARNING level so subprocess log filtering works.
+        if sys.platform != "win32":
+            logger.setLevel(0)
         return logger
+
+
+def cancel_pending_tasks(loop: AbstractEventLoop, logger: Logger) -> None:
+    """Cancels and awaits all pending tasks.
+
+    Reason: When KeyboardInterrupt (e.g. Windows CTRL_C_EVENT) is raised, the
+    coroutine is suspended at an `await` and its task is still pending.
+    We must cancel and await all pending tasks so their except/finally cleanup
+    blocks execute before we terminate descendant processes.
+    This mirrors the behaviour of asyncio.run() / Runner.__exit__ in CPython 3.11+,
+    which calls _cancel_all_tasks() before re-raising KeyboardInterrupt.
+    - CPython asyncio/runners.py _cancel_all_tasks
+      https://github.com/python/cpython/blob/main/Lib/asyncio/runners.py
+    - asyncio.run() documentation
+      https://docs.python.org/3/library/asyncio-runner.html#asyncio.run
+    """
+    pending = asyncio.all_tasks(loop)
+    for task in pending:
+        task.cancel()
+    if pending:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+    cancel_coroutine(logger)
 
 
 def run(
@@ -133,23 +163,7 @@ def run(
             return loop.run_until_complete(coro)
         # Reason: Testing in Subprocess noqa: ERA001
         except KeyboardInterrupt:  # pragma: no cover
-            # Reason: When KeyboardInterrupt (e.g. Windows CTRL_C_EVENT) is raised, the
-            # coroutine is suspended at an `await` and its task is still pending.
-            # We must cancel and await all pending tasks so their except/finally cleanup
-            # blocks execute before we terminate descendant processes.
-            # This mirrors the behaviour of asyncio.run() / Runner.__exit__ in CPython 3.11+,
-            # which calls _cancel_all_tasks() before re-raising KeyboardInterrupt.
-            # see:
-            #   - CPython asyncio/runners.py _cancel_all_tasks
-            #     https://github.com/python/cpython/blob/main/Lib/asyncio/runners.py
-            #   - asyncio.run() documentation
-            #     https://docs.python.org/3/library/asyncio-runner.html#asyncio.run
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            cancel_coroutine(logger)
+            cancel_pending_tasks(loop, logger)
             raise
         finally:
             close_if_has_created(loop)

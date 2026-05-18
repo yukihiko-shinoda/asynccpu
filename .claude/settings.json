@@ -14,9 +14,9 @@
   },
   "permissions": {
     "allow": [
-      "Bash(uv run invoke lint:*)",
-      "Bash(uv run pytest:*)",
-      "Bash(uv run invoke test:*)",
+      "Bash(uv run invoke lint*)",
+      "Bash(uv run pytest*)",
+      "Bash(uv run invoke test*)",
       "Edit(asynccpu/**)",
       "Edit(tests/**)"
     ],
