@@ -19,6 +19,7 @@ import pytest
 from asynccpu.subprocess import LoggingInitializer
 from asynccpu.subprocess import Replier
 from asynccpu.subprocess import cancel_coroutine
+from asynccpu.subprocess import cancel_pending_tasks
 from asynccpu.subprocess import run
 from tests.testlibraries import SECOND_SLEEP_FOR_TEST_MIDDLE
 from tests.testlibraries.assert_log import assert_log
@@ -155,3 +156,23 @@ class TestCancelCoroutine:
         mocker.patch("asynccpu.subprocess.terminate_descendant_processes", mock_terminate_processes)
         cancel_coroutine(getLogger())
         mock_terminate_processes.assert_called_once_with(os.getpid())
+
+
+class TestCancelPendingTasks:
+    """Test for cancel_pending_tasks()."""
+
+    @staticmethod
+    def test_cancel_pending_tasks() -> None:
+        """Function cancel_pending_tasks() should cancel pending tasks."""
+        loop = asyncio.new_event_loop()
+        background_tasks = set()
+        try:
+
+            async def never_ending() -> None:
+                await asyncio.sleep(100)
+
+            background_tasks.add(loop.create_task(never_ending()))
+            loop.run_until_complete(asyncio.sleep(0))
+            cancel_pending_tasks(loop, getLogger())
+        finally:
+            loop.close()
