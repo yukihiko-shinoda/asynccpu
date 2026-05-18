@@ -16,7 +16,6 @@ from typing import Generator
 import pytest
 
 from asynccpu import ProcessTaskPoolExecutor
-from tests.testlibraries import SECOND_SLEEP_FOR_TEST_SHORT
 from tests.testlibraries import SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C
 from tests.testlibraries.cpu_bound import process_cpu_bound
 from tests.testlibraries.future_waiter import FutureWaiter
@@ -56,9 +55,24 @@ async def example_use_case(
         return await asyncio.gather(*futures)
 
 
-def example_use_case_method(queue_logger: queue.Queue[LogRecord] | None = None) -> Generator[str, None, None]:
+def _create_task(
+    executor: ProcessTaskPoolExecutor,
+    task_id: int,
+    on_ready: Callable[[], None] | None,
+) -> Future[str]:
+    future = executor.create_process_task(process_cpu_bound, task_id)
+    if task_id == 0 and on_ready is not None:
+        on_ready()
+    return future
+
+
+def example_use_case_method(
+    queue_logger: queue.Queue[LogRecord] | None = None,
+    on_ready: Callable[[], None] | None = None,
+) -> Generator[str, None, None]:
+    """The example use case of ProcessTaskPoolExecutor for E2E testing."""
     with ProcessTaskPoolExecutor(max_workers=3, cancel_tasks_when_shutdown=True, queue=queue_logger) as executor:
-        futures = [executor.create_process_task(process_cpu_bound, x) for x in range(10)]
+        futures = [_create_task(executor, task_id, on_ready) for task_id in range(10)]
         FutureWaiter.wait(futures)
         return (future.result() for future in futures)
 
@@ -68,13 +82,11 @@ def example_use_case_cancel_repost_process_id(
     queue_main: queue.Queue[LogRecord] | None = None,
 ) -> None:
     """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
-    time.sleep(SECOND_SLEEP_FOR_TEST_SHORT)
-    LocalSocket.send(str(os.getpid()))
     if queue_main:
         logger = getLogger()
         logger.addHandler(QueueHandler(queue_main))
         logger.setLevel(DEBUG)
-    results = example_use_case_method(queue_sub)
+    results = example_use_case_method(queue_sub, on_ready=lambda: LocalSocket.send(str(os.getpid())))
     results_string = repr(results)
     # Without sleep, it's so early that test function can't start waiting for sending after simulate Ctrl-C.
     time.sleep(SECOND_WAIT_FOR_STARTING_TO_WAIT_FOR_SENDING_AFTER_SIMULATE_CTRL_C)
