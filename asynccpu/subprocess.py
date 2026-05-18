@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from logging import Logger
 from logging import getLogger
 from logging import handlers
@@ -95,7 +96,9 @@ class LoggingInitializer:
         # Reason: Python 3.14 changed the default multiprocessing start method to forkserver on
         # Linux. forkserver processes start clean and do not inherit the parent's log level;
         # the default is WARNING, which silences INFO/DEBUG records before they reach the handler.
-        logger.setLevel(0)
+        # On Windows (spawn), preserve the default WARNING level so subprocess log filtering works.
+        if sys.platform != "win32":
+            logger.setLevel(0)
         return logger
 
 
