@@ -1,7 +1,7 @@
 # Asynchronous CPU
 
 [![Test](https://github.com/yukihiko-shinoda/asynccpu/workflows/Test/badge.svg)](https://github.com/yukihiko-shinoda/asynccpu/actions?query=workflow%3ATest)
-[![CodeQL](https://github.com/yukihiko-shinoda/asynccpu/workflows/CodeQL/badge.svg)](https://github.com/yukihiko-shinoda/asynccpu/actions?query=workflow%3ACodeQL)
+[![CodeQL](https://github.com/yukihiko-shinoda/asynccpu/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/yukihiko-shinoda/asynccpu/actions/workflows/github-code-scanning/codeql)
 [![Code Coverage](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu/coverage.svg)](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu)
 [![Maintainability](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu/maintainability.svg)](https://qlty.sh/gh/yukihiko-shinoda/projects/asynccpu)
 [![Dependabot](https://flat.badgen.net/github/dependabot/yukihiko-shinoda/asynccpu?icon=dependabot)](https://github.com/yukihiko-shinoda/asynccpu/security/dependabot)

@@ -1,5 +1,9 @@
 """Test libraries."""
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 SECOND_SLEEP_FOR_TEST_SHORT = 0.12
 SECOND_SLEEP_FOR_TEST_MIDDLE = 0.25
 # To allow all child processes to initialize when running with coverage

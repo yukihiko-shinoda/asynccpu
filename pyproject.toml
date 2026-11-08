@@ -104,15 +104,34 @@ recursive = true
 # For compatibility with Black
 # - How to Configure docformatter — docformatter 1.7.5 documentation
 #   https://docformatter.readthedocs.io/en/stable/configuration.html#a-note-on-options-to-control-styles
-pre_summary_space = true
+black = true
 wrap-descriptions = 119
 wrap-summaries = 119
 
 [tool.flake8]
-# For compatibility with Black:
+# flake8-bugbear B950 reports lines exceeding max_line_length by more than 10%.
+# Black recommends 88 without bugbear and 80 with it,
+# so following that ratio, a line length of 119 corresponds to 109:
+# - PyCQA/flake8-bugbear: A plugin for Flake8 finding likely bugs and design problems in your program.
+#   https://github.com/PyCQA/flake8-bugbear?tab=readme-ov-file#opinionated-warnings
 # - Using Black with other tools - Black 25.1.0 documentation
 #   https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html#bugbear
-max_line_length = 108
+max_line_length = 109
+# B9 (opinionated) warnings of flake8-bugbear are disabled by default,
+# so they must be enabled explicitly (B950 checks line length instead of E501):
+# - PyCQA/flake8-bugbear: A plugin for Flake8 finding likely bugs and design problems in your program.
+#   https://github.com/pycqa/flake8-bugbear#how-to-enable-opinionated-warnings
+extend_select = [
+  "B9",
+]
+# To allow Claude Code to run Flake8 in its sandbox,
+# which denies creating the Unix socket required by multiprocessing for parallel jobs:
+#   File ".../multiprocessing/forkserver.py", line 187, in ensure_running
+#     with socket.socket(socket.AF_UNIX) as listener:
+#   File ".../socket.py", line 237, in __init__
+#     _socket.socket.__init__(self, family, type, proto, fileno)
+# PermissionError: [Errno 1] Operation not permitted
+jobs = 1
 extend_ignore = [
   # For compatibility with Black:
   # - Using Black with other tools - Black 25.1.0 documentation
@@ -176,10 +195,24 @@ line-length = 119
 # - Bug #2123810 “H301 with long line” : Bugs : hacking
 #   https://bugs.launchpad.net/hacking/+bug/2123810
 external = [
+    # Flake8-Bugbear rules that are preview-only in Ruff aren't run with Ruff's default settings,
+    # so list them to prevent Ruff from judging `# noqa` markers needed for Flake8 as unused.
+    "B043",  # Do not call `delattr` with a constant attribute value
+    "B901",  # Using `yield` and `return {value}` in a generator function can lead to confusing behavior
+    "B903",  # Class could be dataclass or namedtuple
+    "B909",  # Mutation to loop iterable `{name}` during iteration
+    # Not implemented in Ruff; only Flake8-Bugbear detects it.
+    "B950",  # Line too long
     "DUO",  # dlint
     "H",  # Openstack/hacking
 ]
-select = ["ALL"]
+select = [
+    "ALL",
+    # Compatible with PEP 257 and checkable by Ruff, so there's no need to think about it further:
+    # - Python の関数 docstring 1 行目は命令形にするべき？ (ruff / pydocstyle D401)
+    #   https://zenn.dev/y_shinoda/articles/pydocstyle-d401
+    "D401",  # First line should be in imperative mood
+]
 ignore = [
     # lint.pydocstyle
     # Reason: Docstring may be missed since docstring-min-length is set.

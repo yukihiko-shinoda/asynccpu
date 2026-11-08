@@ -1,5 +1,9 @@
 """Test for process_cpu_bound.py."""
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import multiprocessing
 import sys
 from concurrent.futures.process import ProcessPoolExecutor

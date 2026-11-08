@@ -6,6 +6,10 @@ https://stackoverflow.com/a/45515052/12721873
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 from logging import getLogger
 
 import psutil

@@ -1,6 +1,10 @@
-"""The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+"""Run the example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
 
 from __future__ import annotations
+
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
 
 import asyncio
 import os
@@ -28,7 +32,7 @@ if TYPE_CHECKING:
 
 
 async def create_example_process_tasks(executor: ProcessTaskPoolExecutor) -> list[Future[str]]:
-    """Creates example process tasks."""
+    """Create example process tasks."""
     futures: list[Future[str]] = []
     for task_id in range(10):
         futures.append(executor.create_process_task(process_cpu_bound, task_id))
@@ -44,7 +48,7 @@ async def example_use_case(
     queue_logger: queue.Queue[LogRecord] | None = None,
     configurer: Callable[[], Any] | None = None,
 ) -> list[str]:
-    """The example use case of ProcessTaskPoolExecutor for E2E testing."""
+    """Run the example use case of ProcessTaskPoolExecutor for E2E testing."""
     with ProcessTaskPoolExecutor(
         max_workers=3,
         cancel_tasks_when_shutdown=True,
@@ -70,7 +74,7 @@ def example_use_case_method(
     queue_logger: queue.Queue[LogRecord] | None = None,
     on_ready: Callable[[], None] | None = None,
 ) -> Generator[str, None, None]:
-    """The example use case of ProcessTaskPoolExecutor for E2E testing."""
+    """Run the example use case of ProcessTaskPoolExecutor for E2E testing."""
     with ProcessTaskPoolExecutor(max_workers=3, cancel_tasks_when_shutdown=True, queue=queue_logger) as executor:
         futures = [_create_task(executor, task_id, on_ready) for task_id in range(10)]
         FutureWaiter.wait(futures)
@@ -81,7 +85,7 @@ def example_use_case_cancel_repost_process_id(
     queue_sub: queue.Queue[LogRecord] | None = None,
     queue_main: queue.Queue[LogRecord] | None = None,
 ) -> None:
-    """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+    """Run the example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
     if queue_main:
         logger = getLogger()
         logger.addHandler(QueueHandler(queue_main))

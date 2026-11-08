@@ -1,5 +1,16 @@
 """Test of keyboard Interrupt for Windows."""
 
+# Reason: Pylint flags the mandatory CPY001 copyright dunders shared with the other Windows-only script
+# as duplicate code, and its similarity checker has no option to ignore specific boilerplate lines:
+# - Allow disabling duplicate-code with a disable comment when running through pylint (Pylint 2.13 changelog)
+#   https://github.com/pylint-dev/pylint/blob/main/doc/whatsnew/2/2.13/full.rst
+# - The duplicate-code (R0801) can't be disabled · Issue #214 · pylint-dev/pylint
+#   https://github.com/pylint-dev/pylint/issues/214
+# pylint: disable=duplicate-code
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import ctypes
 from logging import getLogger
@@ -16,7 +27,7 @@ ctypes.windll.kernel32.SetConsoleCtrlHandler(None, 0)  # type: ignore[attr-defin
 
 
 async def wait_for_starting_process() -> int:
-    """Awaits starting process and returns its process id."""
+    """Await starting process and returns its process id."""
     logger = getLogger(__name__)
     logger.debug("Await socket")
     process_id = int(LocalSocket.receive())

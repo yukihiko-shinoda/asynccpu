@@ -1,5 +1,9 @@
 """This module implements exceptions for this package."""
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 # Tis comment avoids docformatter's issue:
 # - The docformatter removes blank line against PEP8 (conflicts with Ruff (Black)) · Issue #350 · PyCQA/docformatter
 #   https://github.com/PyCQA/docformatter/issues/350

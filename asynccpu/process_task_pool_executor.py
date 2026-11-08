@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import sys
 import threading
@@ -83,7 +87,7 @@ class ProcessTaskFactory:
         *args: ParamSpecCoroutineFunctionArguments.args,
         **kwargs: ParamSpecCoroutineFunctionArguments.kwargs,
     ) -> Future[TypeVarReturnValue]:
-        """Creates ProcessTask."""
+        """Create ProcessTask."""
         try:
             queue_process_id = self.sync_manager.Queue()
         # Reason: Only on Windows.
@@ -157,7 +161,7 @@ class ProcessTaskManager:
         self.logger = getLogger(__name__)
 
     def lock_and_send_signal(self, signal_number: int) -> None:
-        """Cancels task like future if its not cancelled."""
+        """Cancel task like future if it's not cancelled."""
         self.logger.debug("Lock and send signal: Start")
         # Reason: requires to set timeout. pylint: disable=consider-using-with
         is_locked = self.lock_for_dictionary_process_task.acquire(timeout=self.timeout_in_emergency)
@@ -173,7 +177,7 @@ class ProcessTaskManager:
         *args: ParamSpecCoroutineFunctionArguments.args,
         **kwargs: ParamSpecCoroutineFunctionArguments.kwargs,
     ) -> Future[TypeVarReturnValue]:
-        """Creates task like future by wraping coroutine."""
+        """Create task like future by wrapping coroutine."""
         with self.lock_for_dictionary_process_task:
             return self.process_task_factory.create(function_coroutine, *args, **kwargs)
 
@@ -295,7 +299,7 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         self.process_task_manager.process_task_factory.close_loop()
 
     def call_super_class_shutdown(self, *, wait: bool, cancel_futures: bool) -> None:
-        """Calls shutdown() of super class."""
+        """Call shutdown() of super class."""
         if sys.version_info >= (3, 9):
             super().shutdown(wait=wait, cancel_futures=cancel_futures)
         else:
@@ -307,5 +311,5 @@ class ProcessTaskPoolExecutor(ProcessPoolExecutor):
         *args: ParamSpecCoroutineFunctionArguments.args,
         **kwargs: ParamSpecCoroutineFunctionArguments.kwargs,
     ) -> Future[TypeVarReturnValue]:
-        """Creates task like future by wrapping coroutine."""
+        """Create task like future by wrapping coroutine."""
         return self.process_task_manager.create_process_task(function_coroutine, *args, **kwargs)

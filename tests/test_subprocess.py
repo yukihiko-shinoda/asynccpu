@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import _thread
 import asyncio
 import os
@@ -89,7 +93,7 @@ class TestRun:
 
     @classmethod
     def execute_test_run(cls, send_signal: Callable[[psutil.Process], None]) -> None:
-        """Executes test run."""
+        """Execute test run."""
         expect = expect_process_cpu_bound(1)
         future = cls.run_in_process_executor(1)
         cls.execute_send_signal(send_signal)
@@ -109,7 +113,7 @@ class TestRun:
 
     @staticmethod
     def run_in_process_executor(task_id: int) -> Future[Any]:
-        """Sends signal for test."""
+        """Send signal for test."""
         loop = asyncio.new_event_loop()
         with ProcessPoolExecutor() as executor, SyncManager() as manager:
             dictionary_process = manager.dict()

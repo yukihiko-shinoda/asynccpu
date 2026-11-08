@@ -3,6 +3,10 @@
 Execute 'invoke --list' for guidance on using Invoke
 """
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 # Reason: invoke doesn't seem to support type hint, otherwise commands cause error:
 # ValueError: Function has keyword-only parameters or annotations,
 # use inspect.signature() API which can support them
