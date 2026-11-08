@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import multiprocessing
 from multiprocessing import Process
 from multiprocessing import synchronize
@@ -23,7 +27,7 @@ class ProcessFamily:
 
     @classmethod
     def create_child_process(cls, after_task: Callable[[], Any] | None = None) -> Process:
-        """Creates child process for test."""
+        """Create child process for test."""
         event = multiprocessing.Event()
         child_process = Process(target=cls.child, args=(event, after_task))
         child_process.start()
@@ -33,7 +37,7 @@ class ProcessFamily:
 
     @staticmethod
     def get_grandchildren_process(child_process: Process) -> list[psutil.Process]:
-        """Creates grandchildren processes for test."""
+        """Create grandchildren processes for test."""
         psutil_child_process = psutil.Process(child_process.pid)
         grandchildren: list[psutil.Process] = psutil_child_process.children(recursive=True)
         assert grandchildren
@@ -42,7 +46,7 @@ class ProcessFamily:
         return grandchildren
 
     def assert_that_descendant_processes_are_terminated(self) -> None:
-        """Checks that decendant processes are terminated."""
+        """Check that descendant processes are terminated."""
         self.child_process.join()
         _, alive = psutil.wait_procs(self.grandchildren, timeout=1)
         # Reason: Python 3.14 changed the default multiprocessing start method to forkserver on
@@ -61,7 +65,7 @@ class ProcessFamily:
 
     @staticmethod
     def _is_actively_running(process: psutil.Process) -> bool:
-        """Returns True only if the process is running (not a zombie and not gone)."""
+        """Return True only if the process is running (not a zombie and not gone)."""
         try:
             return process.status() not in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD)
         except psutil.NoSuchProcess:

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import contextlib
 import os
@@ -37,13 +41,13 @@ class ExampleUseCaseForTesting:
         root_logger.setLevel(DEBUG)
 
     async def await_and_raise(self) -> None:
-        """The example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
+        """Run the example use case of ProcessTaskPoolExecutor for E2E testing in case of cancel."""
         await self.coroutine
         msg = "Keyboard interrupt isn't received."
         raise AssertionError(msg)
 
     def expected_log_exists(self) -> bool:
-        """Checks expected log exists or not.
+        """Check expected log exists or not.
 
         Returns:
             True: Expected log exists.
@@ -75,7 +79,7 @@ class AsyncioEventLoopForTestingKeyboardInterrupt:
             asyncio.run(self.start_target_process_and_interrupt_it())
 
     async def start_target_process_and_interrupt_it(self) -> None:
-        """Simulates keyboard interrupt by CTRL_C_EVENT."""
+        """Simulate keyboard interrupt by CTRL_C_EVENT."""
         self.logger.debug("Create task")
         task = asyncio.create_task(self.target_process)
         process_id = await self.awaitable_starting_target_process
@@ -97,7 +101,7 @@ class TestingKeyboardInterrupt:
         self.logger = getLogger(__name__)
 
     def execute_test_and_report_result_to_pytest_process(self) -> None:
-        """Tests keyboard interrupt and send response to pytest by socket when succeed."""
+        """Test keyboard interrupt and send response to pytest by socket when succeed."""
         try:
             self.execute_test()
         except BaseException:

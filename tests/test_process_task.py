@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import sys
 from asyncio.events import get_event_loop
@@ -72,7 +76,7 @@ class TestProcessTask:
         expect: bool,
         expect_type_error: type[BaseException],
     ) -> None:
-        """Executes test."""
+        """Execute test."""
         process_task = ProcessTask(int(LocalSocket.receive()))
         assert future.done() == expect
         assert future.cancelled() == expect

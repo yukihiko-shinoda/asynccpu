@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import os
 import sys
@@ -64,7 +68,7 @@ class TestProcessTaskFactory:
 
     @staticmethod
     async def execute_test(process_task_factory: ProcessTaskFactory) -> Future[Any]:
-        """Executes test."""
+        """Execute test."""
         task = process_task_factory.create(process_cpu_bound)
         assert not task.done()
         assert not task.cancelled()
@@ -244,7 +248,8 @@ class TestProcessTaskPoolExecutor:
         with Popen(  # noqa: S603  # nosec B603
             f"{sys.executable} tests\\testlibraries\\keyboaard_interrupt_in_windows.py",
             # Reason: CREATE_NEW_PROCESS_GROUP is Windows-only.
-            creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore[name-defined]  # pylint: disable=used-before-assignment
+            # pylint: disable-next=used-before-assignment
+            creationflags=CREATE_NEW_PROCESS_GROUP,  # type: ignore[name-defined]
             env=env,
         ) as popen:
             asyncio.run(asyncio.sleep(SECOND_SLEEP_FOR_TEST_MIDDLE))
@@ -275,7 +280,7 @@ class TestProcessTaskPoolExecutor:
 
 
 def assert_graceful_shutdown(queue_logger: queue.Queue[LogRecord]) -> None:
-    """Asserts graceful shutdown."""
+    """Assert graceful shutdown."""
     log_checker = LogChecker()
     while not queue_logger.empty():
         log_checker.check(queue_logger.get().message)

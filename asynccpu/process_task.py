@@ -1,5 +1,9 @@
 """Model module of process task."""
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 from logging import getLogger
 
 import psutil
@@ -41,7 +45,7 @@ class ProcessTask:
         return hash(self._id)
 
     def send_signal(self, signal_number: int) -> None:
-        """Cancels task like future if its not cancelled."""
+        """Cancel task like future if it's not cancelled."""
         try:
             psutil.Process(self.id).send_signal(signal_number)
         # Reason: Can't crate code to reach following line.

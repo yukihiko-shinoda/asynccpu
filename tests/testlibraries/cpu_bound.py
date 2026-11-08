@@ -5,6 +5,10 @@ see: https://docs.python.org/3/library/asyncio-eventloop.html#executing-code-in-
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import logging
 import logging.handlers
 import os
@@ -38,7 +42,7 @@ def process_cpu_bound_method(
     send_process_id: bool = False,
     connection: Connection | None = None,
 ) -> None:
-    """The CPU-bound task for method."""
+    """Run the CPU-bound task for method."""
     result = cpu_bound(task_id, send_process_id=send_process_id)
     if connection:
         connection.send(result)
@@ -82,7 +86,7 @@ def log_info_keyboard_interrupt(logger: logging.Logger) -> None:
 
 # Reason: Executor function: submit() doesn't support kwargs.
 def cpu_bound(task_id: int | None = None, send_process_id: bool = False) -> str:  # noqa: FBT001,FBT002
-    """Represents a CPU-bound task.
+    """Represent a CPU-bound task.
 
     CPU-bound operations will block the event loop:
     in general it is preferable to run them in a process pool.

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import asyncio
 import os
 import sys
@@ -89,7 +93,7 @@ class LoggingInitializer:
 
     @staticmethod
     def set_queue_handler(queue_logger: queue.Queue[LogRecord]) -> Logger:
-        """Sets QueueHandler for subprocess."""
+        """Set QueueHandler for subprocess."""
         logger = getLogger()
         handler = handlers.QueueHandler(queue_logger)
         logger.addHandler(handler)
@@ -103,7 +107,7 @@ class LoggingInitializer:
 
 
 def cancel_pending_tasks(loop: AbstractEventLoop, logger: Logger) -> None:
-    """Cancels and awaits all pending tasks.
+    """Cancel and await all pending tasks.
 
     Reason: When KeyboardInterrupt (e.g. Windows CTRL_C_EVENT) is raised, the
     coroutine is suspended at an `await` and its task is still pending.
@@ -131,7 +135,7 @@ def run(
     *args: ParamSpecCoroutineFunctionArguments.args,
     **kwargs: ParamSpecCoroutineFunctionArguments.kwargs,
 ) -> TypeVarReturnValue:
-    """Runs a coroutine in a new event loop.
+    """Run a coroutine in a new event loop.
 
     This function requires to be orphaned since ProcessPoolExecutor requires picklable.
     The argument of Coroutine requires not "raw Coroutine object" but "Coroutine function"

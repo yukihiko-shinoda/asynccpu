@@ -1,5 +1,9 @@
 """The socket to comunicate processes of different group each other."""
 
+__author__ = "Yukihiko Shinoda"
+__copyright__ = "Copyright (c) 2021 Yukihiko Shinoda"
+__license__ = "MIT"
+
 import socket
 from contextlib import closing
 
